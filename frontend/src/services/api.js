@@ -1,7 +1,22 @@
 import axios from 'axios';
 
-// In production on Render, API is served at relative path /api/chats
-const API_URL = import.meta.env.VITE_API_URL || '/api/chats';
+const isProd = import.meta.env.PROD;
+const baseUrl = isProd ? '' : 'http://localhost:5005';
+const API_URL = `${baseUrl}/api/chats`;
+
+// Add a request interceptor to attach JWT token
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 export const getChats = async () => {
   const response = await axios.get(API_URL);

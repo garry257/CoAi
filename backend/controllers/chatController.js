@@ -13,7 +13,10 @@ function generateShareCode() {
 
 exports.getChats = async (req, res) => {
   try {
-    const chats = await Chat.find().sort({ updatedAt: -1 }).select('title shareCode updatedAt');
+    // Only return chats where the logged-in user is a participant
+    const chats = await Chat.find({ participants: req.user.id })
+      .sort({ updatedAt: -1 })
+      .select('title shareCode updatedAt');
     res.json(chats);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -26,6 +29,8 @@ exports.createChat = async (req, res) => {
     const newChat = new Chat({
       title: 'New Chat',
       shareCode,
+      creator: req.user.id,
+      participants: [req.user.id],
       messages: []
     });
     await newChat.save();
@@ -46,6 +51,13 @@ exports.joinChatByCode = async (req, res) => {
     if (!chat) {
       return res.status(404).json({ error: 'No chat found with this share code' });
     }
+
+    // Add current user to participants list if they aren't already in it
+    if (!chat.participants.includes(req.user.id)) {
+      chat.participants.push(req.user.id);
+      await chat.save();
+    }
+
     res.json(chat);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -56,6 +68,12 @@ exports.getChatById = async (req, res) => {
   try {
     const chat = await Chat.findById(req.params.id);
     if (!chat) return res.status(404).json({ error: 'Chat not found' });
+    
+    // Safety check: ensure user is a participant
+    if (!chat.participants.includes(req.user.id)) {
+      return res.status(403).json({ error: 'Access denied. You are not a participant in this chat.' });
+    }
+    
     res.json(chat);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -64,6 +82,14 @@ exports.getChatById = async (req, res) => {
 
 exports.deleteChat = async (req, res) => {
   try {
+    const chat = await Chat.findById(req.params.id);
+    if (!chat) return res.status(404).json({ error: 'Chat not found' });
+    
+    // Safety check: only creator can delete the chat
+    if (chat.creator.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied. Only the creator can delete this chat.' });
+    }
+
     await Chat.findByIdAndDelete(req.params.id);
     res.json({ message: 'Chat deleted' });
   } catch (error) {
@@ -82,6 +108,11 @@ exports.sendMessage = async (req, res) => {
   try {
     const chat = await Chat.findById(id);
     if (!chat) return res.status(404).json({ error: 'Chat not found' });
+
+    // Safety check: ensure user is a participant
+    if (!chat.participants.includes(req.user.id)) {
+      return res.status(403).json({ error: 'Access denied.' });
+    }
 
     // Update title if it's the first message
     if (chat.messages.length === 0) {

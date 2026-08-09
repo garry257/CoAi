@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { FiPlus, FiMessageSquare, FiUsers, FiCopy, FiCheck } from 'react-icons/fi';
+import { FiPlus, FiMessageSquare, FiUsers, FiCopy, FiCheck, FiLogOut, FiUser } from 'react-icons/fi';
 
-const Sidebar = ({ chats, currentChat, onSelectChat, onNewChat, onJoinChat }) => {
+const Sidebar = ({ chats, currentChat, onSelectChat, onNewChat, onJoinChat, onLogout, username }) => {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState('');
-  const [usernameInput, setUsernameInput] = useState('');
   const [copied, setCopied] = useState(false);
   const [joinError, setJoinError] = useState('');
 
@@ -21,11 +20,9 @@ const Sidebar = ({ chats, currentChat, onSelectChat, onNewChat, onJoinChat }) =>
     if (!joinCodeInput.trim()) return;
     setJoinError('');
     try {
-      const nameToUse = usernameInput.trim() || 'A new user';
-      await onJoinChat(joinCodeInput.trim(), nameToUse);
+      await onJoinChat(joinCodeInput.trim(), username);
       setShowJoinModal(false);
       setJoinCodeInput('');
-      setUsernameInput('');
     } catch (err) {
       setJoinError(err.response?.data?.error || 'Failed to join chat with this code');
     }
@@ -71,24 +68,26 @@ const Sidebar = ({ chats, currentChat, onSelectChat, onNewChat, onJoinChat }) =>
         ))}
       </div>
 
+      {/* Profile & Logout Section */}
+      <div className="sidebar-profile-footer">
+        <div className="profile-info">
+          <div className="profile-avatar">
+            <FiUser size={14} />
+          </div>
+          <span className="profile-name">{username}</span>
+        </div>
+        <button className="logout-btn" onClick={onLogout} title="Log Out">
+          <FiLogOut size={16} />
+        </button>
+      </div>
+
       {/* Join Chat Modal */}
       {showJoinModal && (
         <div className="modal-overlay" onClick={() => setShowJoinModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Join Shared Chat Room</h3>
-            <p>Enter your name and the Share Code from your friend:</p>
+            <p>Enter the 6-character Share Code from your friend:</p>
             <form onSubmit={handleJoinSubmit}>
-              <div className="modal-input-group">
-                <label>Your Name:</label>
-                <input 
-                  type="text" 
-                  value={usernameInput}
-                  onChange={(e) => setUsernameInput(e.target.value)}
-                  placeholder="e.g. Alex"
-                  className="input-name"
-                />
-              </div>
-
               <div className="modal-input-group">
                 <label>Share Code:</label>
                 <input 
@@ -98,6 +97,7 @@ const Sidebar = ({ chats, currentChat, onSelectChat, onNewChat, onJoinChat }) =>
                   placeholder="e.g. AB12CD"
                   maxLength={6}
                   className="input-code"
+                  autoFocus
                 />
               </div>
 

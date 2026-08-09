@@ -9,6 +9,7 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 const chatRoutes = require('./routes/chatRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -29,6 +30,7 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/chats', chatRoutes);
 
 // Serve Frontend static build files in production
