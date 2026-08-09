@@ -4,6 +4,7 @@ dns.setServers(['8.8.8.8', '8.8.4.4']);
 const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 require('dotenv').config();
 
@@ -30,13 +31,24 @@ app.use(express.json());
 // Routes
 app.use('/api/chats', chatRoutes);
 
+// Serve Frontend static build files in production
+const frontendDistPath = path.join(__dirname, '../frontend/dist');
+app.use(express.static(frontendDistPath));
+
+// Fallback for SPA routing in production
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api') && req.method === 'GET') {
+    return res.sendFile(path.join(frontendDistPath, 'index.html'));
+  }
+  next();
+});
+
 // Socket.io Connection Handlers
 io.on('connection', (socket) => {
   socket.on('join-room', ({ shareCode, username }) => {
     if (shareCode) {
       socket.join(shareCode);
       if (username) {
-        // Broadcast to other users in the room that someone joined
         socket.to(shareCode).emit('user-joined', username);
       }
     }

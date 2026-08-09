@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5005/api/chats';
+// In production on Render, API is served at relative path /api/chats
+const API_URL = import.meta.env.VITE_API_URL || '/api/chats';
 
 export const getChats = async () => {
   const response = await axios.get(API_URL);
