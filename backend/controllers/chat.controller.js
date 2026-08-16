@@ -1,4 +1,4 @@
-const Chat = require('../models/Chat');
+const Chat = require('../models/chat.model');
 const { GoogleGenAI } = require('@google/genai');
 const Groq = require('groq-sdk');
 const crypto = require('crypto');

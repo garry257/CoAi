@@ -111,6 +111,13 @@ const VoiceInterviewPage = () => {
       if (res.data.isInterviewComplete) {
         navigate(`/interview/${id}/results`, { replace: true });
       } else if (res.data.nextQuestionNumber) {
+        // Update local interview state
+        setInterview(prev => ({
+          ...prev,
+          questionsAnswered: res.data.totalAnswered,
+          currentQuestionIndex: prev.currentQuestionIndex + 1,
+        }));
+
         const nextRes = await getCurrentQuestion(id);
         if (nextRes.success) {
           setCurrentQuestion(nextRes.data.question);
@@ -233,8 +240,27 @@ const VoiceInterviewPage = () => {
           </div>
           <p className="question-text">{currentQuestion?.question}</p>
           
-          <div className="voice-interface" style={{ marginTop: '40px', padding: '20px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px' }}>
-             <h4 style={{ marginBottom: '20px' }}>Voice Controls</h4>
+          <div className="voice-interface" style={{ marginTop: '40px', padding: '20px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', position: 'relative', overflow: 'hidden' }}>
+             
+             {/* Work in Progress Banner */}
+             <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: '#ff9800',
+                color: 'white',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: 'bold',
+                fontSize: '0.9rem',
+                letterSpacing: '1px',
+                zIndex: 10
+             }}>
+                🚧 WORK IN PROGRESS - VOICE MODULE IS UNDER DEVELOPMENT 🚧
+             </div>
+
+             <h4 style={{ marginBottom: '20px', marginTop: '30px' }}>Voice Controls</h4>
              
              <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
                 {!isRecording ? (

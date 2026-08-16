@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext';
 
 // Existing
 import Auth from './components/Auth';
+import './App.css';
 
 // COAI — new
 import AppNav from './components/AppNav';
@@ -13,9 +14,10 @@ import Dashboard from './pages/Dashboard';
 import ResumeUpload from './pages/ResumeUpload';
 import CandidateProfile from './pages/CandidateProfile';
 import InterviewPage from './pages/InterviewPage';
+import InterviewConfiguration from './pages/InterviewConfiguration';
+import VoiceInterviewPage from './pages/VoiceInterviewPage';
 import InterviewResults from './pages/InterviewResults';
 import ResearchAgent from './pages/ResearchAgent';
-import VoiceInterviewPage from './pages/VoiceInterviewPage';
 
 function App() {
   const { isAuthenticated, loading, setToken } = useAuth();
@@ -89,6 +91,14 @@ function App() {
           />
 
           {/* Phase 3: Interview Configuration & Engine */}
+          <Route
+            path="/interview-config"
+            element={
+              <ProtectedRoute>
+                <InterviewConfiguration />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/interview/:id"
             element={

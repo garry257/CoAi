@@ -1,10 +1,49 @@
-const Interview = require('../models/Interview');
-const Question = require('../models/Question');
-const CandidateProfile = require('../models/CandidateProfile');
-const Resume = require('../models/Resume');
+const Interview = require('../models/interview.model');
+const Question = require('../models/question.model');
+const CandidateProfile = require('../models/candidate-profile.model');
+const Resume = require('../models/resume.model');
 const { generateInterviewQuestions } = require('../services/interview/questionGenerator');
+const { evaluateAnswer } = require('../services/ai/evaluator');
 const logger = require('../utils/logger');
 const asyncHandler = require('../utils/asyncHandler');
+
+function calculateRemainingSeconds(startedAt, durationMinutes) {
+  const started = startedAt ? new Date(startedAt) : new Date();
+  const totalSeconds = Number(durationMinutes) * 60;
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - started.getTime()) / 1000));
+  return Math.max(0, totalSeconds - elapsedSeconds);
+}
+
+function normalizeQuestionPayload(question) {
+  const base = question || {};
+  return {
+    topic: String(base.topic || 'General'),
+    subtopic: String(base.subtopic || 'General'),
+    difficulty: ['easy', 'medium', 'hard'].includes(base.difficulty) ? base.difficulty : 'medium',
+    question: String(base.question || '').trim(),
+    expectedConcepts: Array.isArray(base.expectedConcepts) ? base.expectedConcepts.map((concept) => String(concept)) : [],
+    estimatedAnswerSeconds: Number(base.estimatedAnswerSeconds) || 120,
+    followUpQuestions: Array.isArray(base.followUpQuestions)
+      ? base.followUpQuestions.map((item) => ({
+          condition: String(item?.condition || 'Always'),
+          followUpQuestion: String(item?.followUpQuestion || item?.followUpQuestion || ''),
+        }))
+      : [],
+  };
+}
+
+function summarizeInterviewProgress(questions) {
+  const answered = Array.isArray(questions) ? questions.filter((question) => question?.status === 'answered').length : 0;
+  const skipped = Array.isArray(questions) ? questions.filter((question) => question?.status === 'skipped').length : 0;
+  const pending = Array.isArray(questions) ? questions.filter((question) => question?.status === 'pending').length : 0;
+  const total = Math.max(1, answered + skipped + pending);
+  return {
+    answered,
+    skipped,
+    pending,
+    completionRate: Math.round((answered / total) * 100),
+  };
+}
 
 /**
  * Create a new interview with configuration
@@ -60,11 +99,21 @@ exports.createInterview = asyncHandler(async (req, res) => {
         .limit(1);
     }
 
+    // If no profile exists, create a default one for testing
     if (!candidateProfile) {
-      return res.status(400).json({
-        success: false,
-        message: 'No candidate profile found. Please upload and analyze a resume first.'
+      logger.info('[InterviewController] Creating default candidate profile for user:', req.user.id);
+      candidateProfile = new CandidateProfile({
+        userId: req.user.id,
+        skills: [],
+        languages: [],
+        frameworks: [],
+        databases: [],
+        tools: [],
+        experience: [],
+        resumeText: '',
       });
+      await candidateProfile.save();
+      logger.info('[InterviewController] Default candidate profile created:', candidateProfile._id);
     }
 
     // Create interview document
@@ -149,16 +198,17 @@ exports.startInterview = asyncHandler(async (req, res) => {
     // Save questions to database
     const savedQuestions = [];
     for (const q of questions) {
+      const normalizedQuestion = normalizeQuestionPayload(q);
       const question = new Question({
         interviewId: interview._id,
-        topic: q.topic,
-        subtopic: q.subtopic,
-        difficulty: q.difficulty,
-        question: q.question,
-        expectedConcepts: q.expectedConcepts,
-        estimatedAnswerSeconds: q.estimatedAnswerSeconds,
-        followUpQuestions: q.followUpQuestions,
-        questionNumber: q.questionNumber,
+        topic: normalizedQuestion.topic,
+        subtopic: normalizedQuestion.subtopic,
+        difficulty: normalizedQuestion.difficulty,
+        question: normalizedQuestion.question,
+        expectedConcepts: normalizedQuestion.expectedConcepts,
+        estimatedAnswerSeconds: normalizedQuestion.estimatedAnswerSeconds,
+        followUpQuestions: normalizedQuestion.followUpQuestions,
+        questionNumber: q.questionNumber || savedQuestions.length + 1,
         status: 'pending',
       });
       await question.save();
@@ -231,11 +281,17 @@ exports.getCurrentQuestion = asyncHandler(async (req, res) => {
       });
     }
 
-    // Calculate elapsed time for timer
+    // Backend controls the timer; client cannot modify or trust its own clock.
     const startedAt = interview.startedAt ? new Date(interview.startedAt) : new Date();
     const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
-    const totalSeconds = interview.durationMinutes * 60;
-    const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+    const remainingSeconds = calculateRemainingSeconds(interview.startedAt, interview.durationMinutes);
+
+    if (remainingSeconds <= 0 && interview.status === 'in_progress') {
+      interview.status = 'completed';
+      interview.endedAt = new Date();
+      interview.actualDurationSeconds = interview.durationMinutes * 60;
+      await interview.save();
+    }
 
     res.json({
       success: true,
@@ -301,13 +357,40 @@ exports.submitAnswer = asyncHandler(async (req, res) => {
       });
     }
 
+    const remainingSeconds = calculateRemainingSeconds(interview.startedAt, interview.durationMinutes);
+    if (remainingSeconds <= 0 && interview.status === 'in_progress') {
+      interview.status = 'completed';
+      interview.endedAt = new Date();
+      interview.actualDurationSeconds = interview.durationMinutes * 60;
+      await interview.save();
+      return res.status(400).json({
+        success: false,
+        message: 'Interview time has expired. The interview is now complete.',
+      });
+    }
+
     // Save answer
     question.answer = {
       candidateText: answerText,
       submittedAt: new Date(),
-      duration_seconds: durationSeconds || interview.durationMinutes * 60 / interview.totalQuestionsPlanned,
+      duration_seconds: Number(durationSeconds) || Math.max(1, Math.round((interview.durationMinutes * 60) / Math.max(1, interview.totalQuestionsPlanned))),
     };
     question.status = 'answered';
+
+    // Evaluate answer using AI
+    logger.info('[InterviewController] Evaluating candidate answer with AI', {
+      questionId: question._id,
+      expectedConcepts: question.expectedConcepts,
+    });
+    const evaluation = await evaluateAnswer(
+      question.question,
+      answerText,
+      question.expectedConcepts || [],
+      question.topic || ''
+    );
+
+    question.score = evaluation.score;
+    question.feedback = evaluation.feedback;
 
     await question.save();
 
@@ -324,6 +407,52 @@ exports.submitAnswer = asyncHandler(async (req, res) => {
 
     // Check if interview is complete
     const isComplete = interview.questionsAnswered >= interview.totalQuestionsPlanned;
+
+    if (isComplete) {
+      // Auto-complete the interview
+      const startedAt = interview.startedAt || new Date();
+      const actualDurationSeconds = Math.floor((Date.now() - new Date(startedAt)) / 1000);
+      interview.status = 'completed';
+      interview.endedAt = new Date();
+      interview.actualDurationSeconds = actualDurationSeconds;
+
+      const answeredQuestions = await Question.find({
+        interviewId: id,
+        status: 'answered',
+      });
+
+      if (answeredQuestions.length > 0) {
+        const scoredQuestions = answeredQuestions.filter(q => q.feedback && q.feedback.length > 0 && typeof q.score === 'number');
+        if (scoredQuestions.length > 0) {
+          const totalScore = scoredQuestions.reduce((sum, q) => sum + q.score, 0);
+          interview.overallScore = Math.round(totalScore / scoredQuestions.length);
+        } else {
+          const allQuestions = await Question.find({ interviewId: id });
+          const completionRatio = answeredQuestions.length / Math.max(allQuestions.length, 1);
+          interview.overallScore = Math.round(completionRatio * 60);
+        }
+      } else {
+        interview.overallScore = 0;
+      }
+
+      const allQuestions = await Question.find({ interviewId: id });
+      const weakTopicMap = {};
+      for (const q of allQuestions) {
+        const isWeak = q.status === 'skipped' || (typeof q.score === 'number' && q.score < 50);
+        if (isWeak && q.topic) {
+          weakTopicMap[q.topic] = (weakTopicMap[q.topic] || 0) + 1;
+        }
+      }
+      interview.weakTopics = Object.entries(weakTopicMap).map(([topic, count]) => ({ topic, count }));
+      interview.questionsAnswered = answeredQuestions.length;
+
+      await interview.save();
+
+      logger.info('[InterviewController] Interview auto-completed in submitAnswer', {
+        interviewId: id,
+        overallScore: interview.overallScore,
+      });
+    }
 
     let nextQuestion = null;
     if (!isComplete) {
@@ -458,18 +587,48 @@ exports.completeInterview = asyncHandler(async (req, res) => {
     interview.endedAt = new Date();
     interview.actualDurationSeconds = actualDurationSeconds;
 
-    await interview.save();
-
     // Get all answered questions for summary
     const answeredQuestions = await Question.find({
       interviewId: id,
       status: 'answered',
     });
 
+    // Calculate overall score from answered questions
+    if (answeredQuestions.length > 0) {
+      // Only count questions that actually have AI feedback as "scored"
+      const scoredQuestions = answeredQuestions.filter(q => q.feedback && q.feedback.length > 0 && typeof q.score === 'number');
+      if (scoredQuestions.length > 0) {
+        const totalScore = scoredQuestions.reduce((sum, q) => sum + q.score, 0);
+        interview.overallScore = Math.round(totalScore / scoredQuestions.length);
+      } else {
+        // No AI scores yet - calculate based on completion ratio
+        const allQuestions = await Question.find({ interviewId: id });
+        const completionRatio = answeredQuestions.length / Math.max(allQuestions.length, 1);
+        interview.overallScore = Math.round(completionRatio * 60); // Base score on completion ratio (max 60% without AI grading)
+      }
+    } else {
+      interview.overallScore = 0;
+    }
+
+    // Identify weak topics (questions with score < 50 or skipped)
+    const allQuestions = await Question.find({ interviewId: id });
+    const weakTopicMap = {};
+    for (const q of allQuestions) {
+      const isWeak = q.status === 'skipped' || (typeof q.score === 'number' && q.score < 50);
+      if (isWeak && q.topic) {
+        weakTopicMap[q.topic] = (weakTopicMap[q.topic] || 0) + 1;
+      }
+    }
+    interview.weakTopics = Object.entries(weakTopicMap).map(([topic, count]) => ({ topic, count }));
+    interview.questionsAnswered = answeredQuestions.length;
+
+    await interview.save();
+
     logger.info('[InterviewController] Interview completed', {
       interviewId: id,
       actualDurationSeconds,
       questionsAnswered: answeredQuestions.length,
+      overallScore: interview.overallScore,
     });
 
     res.json({
@@ -511,6 +670,18 @@ exports.skipQuestion = asyncHandler(async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to skip questions in this interview'
+      });
+    }
+
+    const remainingSeconds = calculateRemainingSeconds(interview.startedAt, interview.durationMinutes);
+    if (remainingSeconds <= 0 && interview.status === 'in_progress') {
+      interview.status = 'completed';
+      interview.endedAt = new Date();
+      interview.actualDurationSeconds = interview.durationMinutes * 60;
+      await interview.save();
+      return res.status(400).json({
+        success: false,
+        message: 'Interview time has expired. The interview is now complete.',
       });
     }
 
@@ -556,4 +727,57 @@ exports.skipQuestion = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = exports;
+/**
+ * DELETE /api/interviews/:id
+ * Permanently delete an interview and all its questions.
+ */
+exports.deleteInterview = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const interview = await Interview.findById(id);
+
+    if (!interview) {
+      return res.status(404).json({
+        success: false,
+        message: 'Interview not found',
+      });
+    }
+
+    if (interview.userId.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this interview',
+      });
+    }
+
+    // Delete all associated questions
+    await Question.deleteMany({ interviewId: id });
+
+    // Delete the interview itself
+    await Interview.findByIdAndDelete(id);
+
+    logger.info('[InterviewController] Interview deleted successfully', {
+      interviewId: id,
+      userId: req.user.id,
+    });
+
+    res.json({
+      success: true,
+      message: 'Interview and all associated questions deleted successfully',
+    });
+  } catch (error) {
+    logger.error('[InterviewController] deleteInterview error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error deleting interview',
+    });
+  }
+});
+
+module.exports = {
+  ...exports,
+  calculateRemainingSeconds,
+  normalizeQuestionPayload,
+  summarizeInterviewProgress,
+};

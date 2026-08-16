@@ -1050,6 +1050,28 @@ textarea::placeholder {
 .coai-activity-score.mid  { color: #fbbf24; background: rgba(245,158,11,0.12); }
 .coai-activity-score.low  { color: #f87171; background: rgba(239,68,68,0.12); }
 
+/* ---- Weak Topics ---- */
+.coai-weak-topics-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.coai-weak-topic-item {
+  display: flex; flex-direction: column; gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  background: rgba(30,41,59,0.5);
+  border: 1px solid rgba(51,65,85,0.5);
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+.coai-weak-topic-item:hover { background: rgba(30,41,59,0.8); }
+.coai-weak-topic-info { display: flex; justify-content: space-between; align-items: center; }
+.coai-weak-topic-name { font-size: 0.87rem; font-weight: 600; color: #e2e8f0; text-transform: capitalize; }
+.coai-weak-topic-count { font-size: 0.75rem; color: #fb923c; background: rgba(249,115,22,0.12); padding: 0.15rem 0.5rem; border-radius: 6px; }
+.coai-weak-topic-bar {
+  height: 5px; background: rgba(51,65,85,0.7); border-radius: 3px; overflow: hidden;
+}
+.coai-weak-topic-fill {
+  height: 100%; background: linear-gradient(90deg, #f97316, #fb923c);
+  border-radius: 3px; transition: width 0.5s ease;
+}
+
 /* ---- Empty State ---- */
 .coai-empty-state {
   display: flex; flex-direction: column; align-items: center;

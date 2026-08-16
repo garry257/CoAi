@@ -107,3 +107,15 @@ export const skipQuestion = async (interviewId) => {
     };
   }
 };
+
+export const deleteInterview = async (interviewId) => {
+  try {
+    const response = await axios.delete(`${API_URL}/${interviewId}`, { headers: getHeaders() });
+    return response.data;
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Error deleting interview'
+    };
+  }
+};

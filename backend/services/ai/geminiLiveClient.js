@@ -1,212 +1,193 @@
 const { EventEmitter } = require('events');
-const { getGeminiClient } = require('../../config/gemini');
+const WebSocket = require('ws');
+const env = require('../../config/env');
 const logger = require('../../utils/logger');
 
-// According to Gemini docs for Live API, gemini-2.0-flash-exp supports multimodal live API
 const LIVE_MODEL = 'models/gemini-2.0-flash-exp';
+const LIVE_WS_URL = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${env.GEMINI_API_KEY}`;
 
 class GeminiLiveClient extends EventEmitter {
   constructor() {
     super();
-    this.client = getGeminiClient();
-    this.session = null;
+    this.ws = null;
     this.isReady = false;
+    this.connectionReady = null;
+    this.connectionError = null;
   }
 
   async init() {
-    if (!this.client) {
-      throw new Error('Gemini API is not configured.');
+    if (!env.GEMINI_API_KEY) {
+      throw new Error('Gemini API is not configured. Set GEMINI_API_KEY in backend/.env');
     }
 
-    // Connect to the Live API WebSocket via the SDK
-    // The Live API in genai sdk is experimental.
-    // Example SDK Usage for Live API might vary depending on exact SDK version, 
-    // assuming @google/genai provides connect() or similar for Live API.
-    // Based on @google/genai docs, we need to establish a WebSocket connection.
-    try {
-        // Fallback: If @google/genai live client isn't available, we may need to use native websockets.
-        // Assuming @google/genai 0.1.1 or above provides it.
-        // The Google Gen AI SDK docs say: 
-        // const session = await ai.clients.createLiveClient({ model: 'gemini-2.0-flash-exp' })
-        
-        // Let's implement a robust version.
-        if (this.client.clients && typeof this.client.clients.createLiveClient === 'function') {
-            this.session = await this.client.clients.createLiveClient({
-                model: LIVE_MODEL,
-                config: {
-                    generationConfig: {
-                        responseModalities: ["AUDIO"],
-                        speechConfig: {
-                            voiceConfig: {
-                                prebuiltVoiceConfig: {
-                                    voiceName: "Aoede" // Example voice
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-            this._setupHandlers();
-            this.isReady = true;
-        } else {
-            // Fallback for native websocket implementation if SDK method is missing
-            const env = require('../../config/env');
-            const WebSocket = require('ws');
-            const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${env.GEMINI_API_KEY}`;
-            this.ws = new WebSocket(url);
-            
-            await new Promise((resolve, reject) => {
-                this.ws.on('open', resolve);
-                this.ws.on('error', reject);
-            });
-            
-            // Send initial setup message
-            const setupMessage = {
-                setup: {
-                    model: LIVE_MODEL,
-                    generationConfig: {
-                        responseModalities: ["AUDIO"],
-                    }
-                }
-            };
-            this.ws.send(JSON.stringify(setupMessage));
-            
-            this.ws.on('message', (data) => {
-                try {
-                    const response = JSON.parse(data.toString());
-                    this._handleRawMessage(response);
-                } catch (e) {
-                    logger.error('[GeminiLive] Failed to parse message', e);
-                }
-            });
-            
-            this.isReady = true;
-        }
-    } catch (err) {
-        logger.error('[GeminiLive] Failed to initialize live client:', err);
-        throw err;
-    }
-  }
+    return new Promise((resolve, reject) => {
+      try {
+        this.ws = new WebSocket(LIVE_WS_URL);
 
-  _setupHandlers() {
-     // If using SDK's live client session
-     this.session.on('content', (content) => {
-         // content could be audio or text
-         if (content.modelTurn) {
-             const parts = content.modelTurn.parts;
-             for (const part of parts) {
-                 if (part.inlineData && part.inlineData.mimeType.startsWith('audio/pcm')) {
-                     // Convert base64 to buffer
-                     const pcmBuffer = Buffer.from(part.inlineData.data, 'base64');
-                     this.emit('audio', pcmBuffer);
-                 }
-                 if (part.text) {
-                     this.emit('content', part.text);
-                 }
-             }
-         }
-     });
+        const cleanup = () => {
+          this.ws.removeAllListeners('open');
+          this.ws.removeAllListeners('error');
+          this.ws.removeAllListeners('message');
+          this.ws.removeAllListeners('close');
+        };
 
-     this.session.on('error', (error) => {
-         this.emit('error', error);
-     });
-  }
+        this.ws.on('open', () => {
+          logger.info('[GeminiLive] WebSocket connected to Gemini Live');
 
-  _handleRawMessage(response) {
-      if (response.serverContent && response.serverContent.modelTurn) {
-          const parts = response.serverContent.modelTurn.parts;
-          for (const part of parts) {
-              if (part.inlineData && part.inlineData.mimeType.startsWith('audio/pcm')) {
-                  const pcmBuffer = Buffer.from(part.inlineData.data, 'base64');
-                  this.emit('audio', pcmBuffer);
-              }
-              if (part.text) {
-                  this.emit('content', part.text);
-              }
+          const setupMessage = {
+            setup: {
+              model: LIVE_MODEL,
+              generationConfig: {
+                responseModalities: ['AUDIO', 'TEXT'],
+                temperature: 0.2,
+                topP: 0.9,
+              },
+              systemInstruction: {
+                parts: [{ text: 'You are a professional interview assistant. Ask one question at a time, and keep responses concise but useful.' }],
+              },
+            },
+          };
+
+          this.ws.send(JSON.stringify(setupMessage));
+        });
+
+        this.ws.on('message', (data) => {
+          try {
+            const payload = JSON.parse(data.toString());
+            this._handleIncomingMessage(payload);
+          } catch (error) {
+            logger.error('[GeminiLive] Failed to parse Gemini message:', error.message);
           }
+        });
+
+        this.ws.on('error', (error) => {
+          this.connectionError = error;
+          logger.error('[GeminiLive] WebSocket error:', error.message || error);
+          this.emit('error', error);
+          cleanup();
+          reject(error);
+        });
+
+        this.ws.on('close', (code, reason) => {
+          logger.warn(`[GeminiLive] WebSocket closed: ${code} ${reason ? reason.toString() : ''}`);
+          this.isReady = false;
+          this.emit('closed', { code, reason: reason ? reason.toString() : '' });
+        });
+
+        this.ws.on('open', () => {
+          this.isReady = true;
+          this.emit('ready');
+          resolve(this);
+        });
+      } catch (error) {
+        logger.error('[GeminiLive] Failed to initialize Gemini Live client:', error.message);
+        reject(error);
       }
+    });
+  }
+
+  _handleIncomingMessage(payload) {
+    if (payload.setupComplete) {
+      this.isReady = true;
+      this.emit('ready');
+      return;
+    }
+
+    if (payload.serverContent) {
+      const modelTurn = payload.serverContent.modelTurn;
+      const parts = modelTurn?.parts || [];
+
+      for (const part of parts) {
+        if (part.text) {
+          this.emit('content', part.text);
+        }
+
+        if (part.inlineData && part.inlineData.mimeType?.startsWith('audio/')) {
+          const audioBuffer = Buffer.from(part.inlineData.data, 'base64');
+          this.emit('audio', audioBuffer);
+        }
+      }
+    }
+
+    if (payload.error) {
+      const message = payload.error.message || 'Gemini Live API error';
+      logger.error('[GeminiLive] Live API error:', message);
+      this.emit('error', new Error(message));
+    }
   }
 
   async sendSystemInstruction(instruction) {
-      if (!this.isReady) return;
-      
-      const content = {
-          clientContent: {
-              turns: [{
-                  role: "user",
-                  parts: [{ text: `[SYSTEM INSTRUCTION]: ${instruction}` }]
-              }],
-              turnComplete: true
-          }
-      };
+    if (!this.isReady || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
 
-      if (this.session) {
-          await this.session.send(content);
-      } else if (this.ws) {
-          this.ws.send(JSON.stringify(content));
-      }
+    const message = {
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [{ text: instruction }],
+          },
+        ],
+        turnComplete: true,
+      },
+    };
+
+    this.ws.send(JSON.stringify(message));
   }
 
   async sendClientContent(text) {
-      if (!this.isReady) return;
-      
-      const content = {
-          clientContent: {
-              turns: [{
-                  role: "user",
-                  parts: [{ text }]
-              }],
-              turnComplete: true
-          }
-      };
+    if (!this.isReady || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
 
-      if (this.session) {
-          await this.session.send(content);
-      } else if (this.ws) {
-          this.ws.send(JSON.stringify(content));
-      }
+    const message = {
+      clientContent: {
+        turns: [
+          {
+            role: 'user',
+            parts: [{ text }],
+          },
+        ],
+        turnComplete: true,
+      },
+    };
+
+    this.ws.send(JSON.stringify(message));
   }
 
   async sendRealtimeAudio(pcmBuffer) {
-      if (!this.isReady) return;
+    if (!this.isReady || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
 
-      // Gemini expects base64 encoded audio/pcm chunks
-      const base64Audio = pcmBuffer.toString('base64');
-      const content = {
-          realtimeInput: {
-              mediaChunks: [{
-                  mimeType: "audio/pcm;rate=16000",
-                  data: base64Audio
-              }]
-          }
-      };
+    const base64Audio = Buffer.from(pcmBuffer).toString('base64');
+    const message = {
+      realtimeInput: {
+        mediaChunks: [
+          {
+            mimeType: 'audio/pcm;rate=16000',
+            data: base64Audio,
+          },
+        ],
+      },
+    };
 
-      if (this.session) {
-          await this.session.send(content);
-      } else if (this.ws) {
-          this.ws.send(JSON.stringify(content));
-      }
+    this.ws.send(JSON.stringify(message));
   }
 
   close() {
-      this.isReady = false;
-      if (this.session) {
-          // close session
-      }
-      if (this.ws) {
-          this.ws.close();
-      }
+    this.isReady = false;
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.close();
+    }
   }
 }
 
-/**
- * Creates and initializes a new Gemini Live Client
- * @returns {Promise<GeminiLiveClient>}
- */
 const createGeminiLiveClient = async () => {
-    const client = new GeminiLiveClient();
-    await client.init();
-    return client;
+  const liveClient = new GeminiLiveClient();
+  await liveClient.init();
+  return liveClient;
 };
 
-module.exports = { createGeminiLiveClient };
+module.exports = { createGeminiLiveClient, GeminiLiveClient };

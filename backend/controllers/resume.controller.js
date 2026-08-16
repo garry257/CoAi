@@ -1,5 +1,5 @@
-const Resume = require('../models/Resume');
-const CandidateProfile = require('../models/CandidateProfile');
+const Resume = require('../models/resume.model');
+const CandidateProfile = require('../models/candidate-profile.model');
 const { extractTextFromPDF } = require('../services/resume/pdfExtractor');
 const { analyzeResume } = require('../services/resume/resumeAnalyzer');
 const asyncHandler = require('../utils/asyncHandler');

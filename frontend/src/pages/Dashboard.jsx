@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getDashboardSummary, getDashboardProgress } from '../features/dashboard/api';
-import { createInterview, startInterview } from '../features/interview/api';
+import { getDashboardSummary, getDashboardProgress, deleteWeakTopic } from '../features/dashboard/api';
+import { createInterview, startInterview, deleteInterview } from '../features/interview/api';
 import { getCandidateProfile } from '../features/resume/api';
 import {
-  FiTarget, FiTrendingUp, FiAlertTriangle, FiBookOpen,
+  FiTarget, FiTrendingUp, FiAlertTriangle,
   FiPlay, FiUpload, FiUsers, FiArrowRight, FiAward,
-  FiBarChart2, FiClock, FiX
+  FiBarChart2, FiClock, FiX, FiAlertCircle, FiTrash2
 } from 'react-icons/fi';
 
 const Dashboard = () => {
@@ -18,11 +18,10 @@ const Dashboard = () => {
   const [showInterviewConfig, setShowInterviewConfig] = useState(false);
   const [interviewConfig, setInterviewConfig] = useState({
     role: '',
-    interviewType: 'technical',
+    interviewType: 'resume_based',
     company: '',
     durationMinutes: 30,
     difficulty: 'medium',
-    mode: 'text',
   });
   const [configLoading, setConfigLoading] = useState(false);
   const [configError, setConfigError] = useState('');
@@ -54,7 +53,7 @@ const Dashboard = () => {
         totalInterviews: 0,
         averageScore: 0,
         weakTopicsCount: 0,
-        studySessions: 0,
+        weakTopics: [],
         recentInterviews: [],
       });
     } finally {
@@ -62,12 +61,32 @@ const Dashboard = () => {
     }
   };
 
-  const handleStartInterview = () => {
-    if (!candidateProfileId) {
-      navigate('/resume-upload');
+  const handleDeleteWeakTopic = async (topic) => {
+    if (!window.confirm(`Are you sure you want to remove "${topic}" from your weak areas?`)) {
       return;
     }
-    setShowInterviewConfig(true);
+    try {
+      await deleteWeakTopic(topic);
+      loadDashboard();
+    } catch (err) {
+      console.error('Failed to delete weak topic:', err);
+    }
+  };
+
+  const handleDeleteInterview = async (interviewId) => {
+    if (!window.confirm('Are you sure you want to delete this interview session permanently?')) {
+      return;
+    }
+    try {
+      await deleteInterview(interviewId);
+      loadDashboard();
+    } catch (err) {
+      console.error('Failed to delete interview:', err);
+    }
+  };
+
+  const handleStartInterview = () => {
+    navigate('/interview-config');
   };
 
   const handleConfigChange = (e) => {
@@ -113,12 +132,8 @@ const Dashboard = () => {
         return;
       }
 
-      // Navigate to interview
-      if (interviewConfig.mode === 'voice') {
-        navigate(`/interview/${interviewId}/voice`);
-      } else {
-        navigate(`/interview/${interviewId}`);
-      }
+      // Navigate to interview in text mode only for Phase 3.
+      navigate(`/interview/${interviewId}`);
     } catch (err) {
       setConfigError(err.message || 'An error occurred');
     } finally {
@@ -160,13 +175,6 @@ const Dashboard = () => {
       value: summary?.weakTopicsCount || 0,
       accent: 'orange',
       description: 'Need improvement',
-    },
-    {
-      icon: <FiBookOpen size={24} />,
-      label: 'Study Sessions',
-      value: summary?.studySessions || 0,
-      accent: 'purple',
-      description: 'Learning progress',
     },
   ];
 
@@ -264,26 +272,78 @@ const Dashboard = () => {
         </div>
       </section>
 
+      {/* Weak Topics Breakdown */}
+      {hasData && summary?.weakTopics?.length > 0 && (
+        <section className="coai-activity-section" id="coai-weak-topics-section">
+          <h2 className="coai-section-title">
+            <FiAlertCircle size={20} />
+            Weak Areas to Improve
+          </h2>
+          <div className="coai-weak-topics-list">
+            {summary.weakTopics.map((wt) => (
+              <div key={wt.topic} className="coai-weak-topic-item">
+                <div className="coai-weak-topic-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="coai-weak-topic-name">{wt.topic}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span className="coai-weak-topic-count" style={{ fontSize: '0.85rem', opacity: 0.8 }}>{wt.count} weak question{wt.count > 1 ? 's' : ''}</span>
+                    <button
+                      onClick={() => handleDeleteWeakTopic(wt.topic)}
+                      className="coai-delete-btn"
+                      title="Remove from Weak Areas"
+                      style={{ background: 'none', border: 'none', color: '#ff5c5c', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px', borderRadius: '4px', transition: 'all 0.2s' }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#ff3333'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#ff5c5c'}
+                    >
+                      <FiTrash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div className="coai-weak-topic-bar">
+                  <div
+                    className="coai-weak-topic-fill"
+                    style={{ width: `${Math.min(100, wt.count * 20)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Recent Activity / Empty State */}
       <section className="coai-activity-section" id="coai-activity-section">
         <h2 className="coai-section-title">
           <FiClock size={20} />
-          Recent Activity
+          Recent Interviews
         </h2>
         {hasData ? (
           <div className="coai-activity-list">
             {summary.recentInterviews.map((interview) => (
-              <div key={interview._id} className="coai-activity-item">
-                <div className="coai-activity-dot" />
-                <div className="coai-activity-info">
-                  <span className="coai-activity-role">{interview.role || interview.interviewType}</span>
-                  <span className="coai-activity-date">
-                    {new Date(interview.createdAt).toLocaleDateString()}
-                  </span>
+              <div key={interview._id} className="coai-activity-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                  <div className="coai-activity-dot" />
+                  <div className="coai-activity-info">
+                    <span className="coai-activity-role">{interview.role}</span>
+                    <span className="coai-activity-date">
+                      {interview.interviewType?.replace('_', ' ').toUpperCase()} &bull; {new Date(interview.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
                 </div>
-                <span className={`coai-activity-score ${interview.overallScore >= 70 ? 'good' : interview.overallScore >= 40 ? 'mid' : 'low'}`}>
-                  {interview.overallScore}%
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <span className={`coai-activity-score ${interview.overallScore >= 70 ? 'good' : interview.overallScore >= 40 ? 'mid' : 'low'}`}>
+                    {interview.overallScore}%
+                  </span>
+                  <button
+                    onClick={() => handleDeleteInterview(interview._id)}
+                    className="coai-delete-btn"
+                    title="Delete Interview Session"
+                    style={{ background: 'none', border: 'none', color: '#ff5c5c', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px', borderRadius: '4px', transition: 'all 0.2s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#ff3333'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#ff5c5c'}
+                  >
+                    <FiTrash2 size={16} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -296,7 +356,7 @@ const Dashboard = () => {
             <p>Complete your first mock interview to see your progress and stats here.</p>
             <button
               className="coai-empty-cta"
-              onClick={() => {}}
+              onClick={handleStartInterview}
               id="empty-state-start-btn"
             >
               <FiPlay size={16} />
@@ -346,11 +406,8 @@ const Dashboard = () => {
                   value={interviewConfig.interviewType}
                   onChange={handleConfigChange}
                 >
-                  <option value="technical">Technical</option>
-                  <option value="hr">HR/Behavioral</option>
-                  <option value="fullstack">Full Stack</option>
-                  <option value="ai_genai">AI/GenAI</option>
                   <option value="resume_based">Resume-Based</option>
+                  <option value="hr">HR / Behavioral</option>
                   <option value="company_specific">Company Specific</option>
                 </select>
               </div>
@@ -383,33 +440,6 @@ const Dashboard = () => {
                   <option value={45}>45 minutes</option>
                   <option value={60}>60 minutes</option>
                 </select>
-              </div>
-
-              {/* Interview Mode */}
-              <div className="coai-form-group">
-                <label>Interview Mode *</label>
-                <div className="coai-difficulty-options">
-                  <label className="coai-radio-label">
-                    <input
-                      type="radio"
-                      name="mode"
-                      value="text"
-                      checked={interviewConfig.mode === 'text'}
-                      onChange={handleConfigChange}
-                    />
-                    <span>Text (Typing)</span>
-                  </label>
-                  <label className="coai-radio-label">
-                    <input
-                      type="radio"
-                      name="mode"
-                      value="voice"
-                      checked={interviewConfig.mode === 'voice'}
-                      onChange={handleConfigChange}
-                    />
-                    <span>Voice (Gemini Live)</span>
-                  </label>
-                </div>
               </div>
 
               {/* Difficulty */}

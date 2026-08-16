@@ -6,18 +6,18 @@ const helmet = require('helmet');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // Config
 const connectDB = require('./config/db');
 const env = require('./config/env');
 
 // Routes
-const chatRoutes = require('./routes/chatRoutes');
-const authRoutes = require('./routes/authRoutes');
+const chatRoutes = require('./routes/chat.routes');
+const authRoutes = require('./routes/auth.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const resumeRoutes = require('./routes/resume.routes');
-const candidateProfileRoutes = require('./routes/candidateProfile.routes');
+const candidateProfileRoutes = require('./routes/candidate-profile.routes');
 const interviewRoutes = require('./routes/interview.routes');
 const ragRoutes = require('./routes/rag.routes');
 const researchRoutes = require('./routes/research.routes');
@@ -111,7 +111,7 @@ app.use(errorHandler);
 const PORT = env.PORT;
 
 connectDB().then(() => {
-  const { setupVoiceSockets } = require('./controllers/voiceController');
+  const { setupVoiceSockets } = require('./controllers/voice.controller');
   setupVoiceSockets(server);
 
   server.listen(PORT, () => {

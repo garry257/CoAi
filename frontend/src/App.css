@@ -187,131 +187,197 @@
 .coai-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+  backdrop-filter: blur(3px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(3px);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .coai-modal-content {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  max-width: 500px;
+  background: linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(102, 126, 234, 0.25),
+              0 0 120px rgba(118, 75, 162, 0.15);
+  max-width: 520px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
+  animation: slideUp 0.3s ease-out;
+  border: 2px solid rgba(102, 126, 234, 0.15);
 }
 
 .coai-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px;
-  border-bottom: 1px solid #e0e0e0;
+  padding: 32px 28px;
+  border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px 20px 0 0;
 }
 
 .coai-modal-header h2 {
   margin: 0;
-  font-size: 1.4rem;
-  color: #333;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: white;
+  letter-spacing: -0.5px;
 }
 
 .coai-modal-close {
-  background: none;
+  background: rgba(255, 255, 255, 0.15);
   border: none;
   cursor: pointer;
-  color: #666;
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
-  border-radius: 6px;
-  transition: all 0.2s;
+  padding: 10px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  font-size: 24px;
+  backdrop-filter: blur(2px);
 }
 
 .coai-modal-close:hover {
-  background: #f0f0f0;
-  color: #333;
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.08) rotate(90deg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .coai-modal-error {
-  background: #fee;
-  border: 1px solid #fcc;
+  background: linear-gradient(135deg, #fee 0%, #fed 100%);
+  border: 2px solid #fc8;
   color: #c33;
-  padding: 12px 16px;
-  margin: 16px;
-  border-radius: 6px;
+  padding: 14px 18px;
+  margin: 20px;
+  border-radius: 10px;
   font-size: 0.95rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .coai-interview-form {
-  padding: 24px;
+  padding: 32px 28px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .coai-form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .coai-form-group label {
-  font-weight: 600;
-  color: #333;
-  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1a202c;
+  font-size: 0.98rem;
+  letter-spacing: -0.2px;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.3px;
+  color: #4a5568;
+}
+
+.coai-form-group label::after {
+  content: attr(data-required);
+  color: #e74c3c;
+  margin-left: 2px;
 }
 
 .coai-form-group input,
 .coai-form-group select {
-  padding: 10px 12px;
-  border: 2px solid #e0e0e0;
-  border-radius: 6px;
-  font-size: 0.95rem;
+  padding: 14px 16px;
+  border: 2px solid #e5e8f0;
+  border-radius: 12px;
+  font-size: 0.96rem;
   font-family: inherit;
-  transition: border-color 0.3s;
+  transition: all 0.3s ease;
+  background: white;
+  color: #1a202c;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .coai-form-group input:focus,
 .coai-form-group select:focus {
   outline: none;
   border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15),
+              inset 0 1px 3px rgba(102, 126, 234, 0.08);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
 }
 
 .coai-form-group input::placeholder {
-  color: #999;
+  color: #a0aec0;
+  font-weight: 400;
 }
 
 .coai-difficulty-options {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 14px;
+  margin-top: 6px;
 }
 
 .coai-radio-label {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 10px;
-  border: 2px solid #e0e0e0;
-  border-radius: 6px;
+  padding: 16px 14px;
+  border: 2px solid #e5e8f0;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
+  background: white;
+  position: relative;
+  font-weight: 600;
 }
 
 .coai-radio-label:hover {
   border-color: #667eea;
-  background: #f8f9ff;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f3ff 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
 }
 
 .coai-radio-label input[type="radio"] {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   cursor: pointer;
   accent-color: #667eea;
   margin: 0;
@@ -319,68 +385,523 @@
 
 .coai-radio-label input[type="radio"]:checked + span {
   color: #667eea;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .coai-radio-label span {
-  font-size: 0.9rem;
-  color: #333;
+  font-size: 0.95rem;
+  color: #4a5568;
+  font-weight: 500;
 }
 
 .coai-modal-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  padding: 24px;
-  border-top: 1px solid #e0e0e0;
-  background: #f9f9f9;
+  gap: 16px;
+  padding: 28px;
+  border-top: 2px solid rgba(102, 126, 234, 0.1);
+  background: linear-gradient(180deg, rgba(248, 249, 250, 0.5) 0%, rgba(240, 243, 255, 0.5) 100%);
 }
 
 .coai-btn-primary,
 .coai-btn-secondary {
-  padding: 11px 20px;
+  padding: 14px 24px;
   border: none;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  font-weight: 600;
+  border-radius: 12px;
+  font-size: 0.96rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
+  letter-spacing: -0.3px;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
 }
 
 .coai-btn-primary {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.35);
 }
 
 .coai-btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 35px rgba(102, 126, 234, 0.45);
 }
 
-.coai-btn-primary:disabled {
-  opacity: 0.6;
+/* ========================================
+   Interview Configuration Page Styling
+   ======================================== */
+
+.coai-config-page {
+  min-height: 100vh;
+  background-color: var(--bg-dark);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.15) 0px, transparent 50%);
+  padding: 40px 20px;
+  position: relative;
+  overflow-y: auto;
+}
+
+.coai-config-background {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 20% 50%,
+    rgba(102, 126, 234, 0.1) 0%,
+    transparent 50%
+  ),
+  radial-gradient(
+    circle at 80% 80%,
+    rgba(118, 75, 162, 0.1) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.coai-config-container {
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+.coai-config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 40px;
+  color: white;
+  animation: slideDown 0.5s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.coai-config-back-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(4px);
+}
+
+.coai-config-back-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateX(-4px);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.coai-config-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 0;
+  text-align: center;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.coai-config-wrapper {
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4),
+              0 0 120px rgba(59, 130, 246, 0.1);
+  overflow: hidden;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.coai-config-section {
+  padding: 40px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.coai-config-section:last-of-type {
+  border-bottom: none;
+}
+
+.coai-config-section-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 24px 0;
+  letter-spacing: -0.3px;
+}
+
+.coai-mode-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.coai-mode-btn {
+  background: var(--bg-input);
+  border: 2px solid var(--border-color);
+  padding: 24px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-weight: 700;
+  position: relative;
+  overflow: hidden;
+}
+
+.coai-mode-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0) 0%, rgba(102, 126, 234, 0.1) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+
+.coai-mode-btn:hover {
+  border-color: var(--accent-color);
+  background: rgba(59, 130, 246, 0.05);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+}
+
+.coai-mode-btn.active {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  box-shadow: 0 12px 40px rgba(59, 130, 246, 0.15);
+}
+
+.coai-mode-btn small {
+  font-size: 0.8rem;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.coai-mode-btn svg {
+  font-size: 2.5rem;
+}
+
+.coai-config-form {
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.coai-config-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.coai-config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.coai-config-label {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.coai-config-label .required {
+  color: #e74c3c;
+}
+
+.coai-config-label .optional {
+  color: #a0aec0;
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.coai-config-input,
+.coai-config-select {
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 0.96rem;
+  font-family: inherit;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  transition: all 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.coai-config-input:focus,
+.coai-config-select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  background: var(--bg-sidebar);
+}
+
+.coai-config-input::placeholder {
+  color: #a0aec0;
+}
+
+.coai-config-input:disabled,
+.coai-config-select:disabled {
+  background: rgba(255,255,255,0.05);
+  color: var(--text-secondary);
   cursor: not-allowed;
 }
 
-.coai-btn-secondary {
-  background: #f0f0f0;
-  color: #333;
-  border: 2px solid #e0e0e0;
+.coai-config-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
 }
 
-.coai-btn-secondary:hover:not(:disabled) {
-  background: #e8e8e8;
-  border-color: #999;
+@media (max-width: 768px) {
+  .coai-config-row {
+    grid-template-columns: 1fr;
+  }
 }
 
-.coai-btn-secondary:disabled {
+.coai-difficulty-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.coai-difficulty-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: var(--bg-input);
+}
+
+.coai-difficulty-option:hover {
+  border-color: var(--accent-color);
+  background: rgba(59, 130, 246, 0.05);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.coai-difficulty-option input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: var(--accent-color);
+  margin: 0;
+}
+
+.coai-difficulty-option input[type="radio"]:checked + .coai-difficulty-label {
+  color: var(--accent-color);
+  font-weight: 700;
+}
+
+.coai-difficulty-label {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.coai-config-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+@media (max-width: 568px) {
+  .coai-config-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+.coai-config-btn-primary,
+.coai-config-btn-secondary {
+  padding: 14px 24px;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.coai-config-btn-primary {
+  background: linear-gradient(135deg, var(--accent-color) 0%, #8b5cf6 100%);
+  color: white;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.25);
+}
+
+.coai-config-btn-primary:hover:not(:disabled) {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 35px rgba(59, 130, 246, 0.4);
+}
+
+.coai-config-btn-primary:active:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.coai-config-btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.coai-config-btn-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  font-weight: 700;
+}
+
+.coai-config-btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-3px);
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.coai-config-btn-secondary:active:not(:disabled) {
+  transform: translateY(0px);
+}
+
+.coai-config-btn-secondary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
 @media (max-width: 768px) {
+  .coai-config-page {
+    padding: 20px 10px;
+  }
+
+  .coai-config-container {
+    padding: 0;
+  }
+
+  .coai-config-header {
+    margin-bottom: 30px;
+  }
+
+  .coai-config-title {
+    font-size: 1.8rem;
+  }
+
+  .coai-config-section {
+    padding: 24px;
+  }
+
+  .coai-config-form {
+    padding: 24px;
+    gap: 20px;
+  }
+
+  .coai-mode-selector {
+    grid-template-columns: 1fr;
+  }
+}
+
+.coai-btn-primary:active:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.coai-btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.coai-btn-secondary {
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f3ff 100%);
+  color: #667eea;
+  border: 2px solid #d4d9f0;
+  font-weight: 700;
+}
+
+.coai-btn-secondary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f0f3ff 0%, #e8ecff 100%);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.25);
+  border-color: #667eea;
+}
+
+.coai-btn-secondary:active:not(:disabled) {
+  transform: translateY(0px);
+}
+
+@media (max-width: 768px) {
   .coai-modal-content {
-    max-width: 90%;
+    max-width: 95%;
+    border-radius: 14px;
+  }
+
+  .coai-modal-header {
+    padding: 20px 24px;
+  }
+
+  .coai-modal-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .coai-interview-form {
+    padding: 20px 24px;
+    gap: 18px;
   }
 
   .coai-difficulty-options {
@@ -389,5 +910,13 @@
 
   .coai-modal-actions {
     grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 20px 24px;
+  }
+
+  .coai-btn-primary,
+  .coai-btn-secondary {
+    padding: 12px 20px;
+    font-size: 0.9rem;
   }
 }

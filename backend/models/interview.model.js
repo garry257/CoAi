@@ -67,6 +67,10 @@ const interviewSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  weakTopics: [{
+    topic: String,
+    count: Number,
+  }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('Interview', interviewSchema);

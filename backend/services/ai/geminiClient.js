@@ -1,14 +1,24 @@
 const { getGeminiClient, GEMINI_MODEL } = require('../../config/gemini');
+const Groq = require('groq-sdk');
+const env = require('../../config/env');
 const logger = require('../../utils/logger');
 
 /**
- * Thin wrapper around Gemini SDK.
+ * Thin wrapper around Gemini SDK with Groq fallback.
  * Provides a single, consistent API for generating content.
  */
 class GeminiService {
   constructor() {
     this.client = null;
     this.model = GEMINI_MODEL;
+    this.groqClient = null;
+  }
+
+  _getGroqClient() {
+    if (!this.groqClient && env.GROQ_API_KEY) {
+      this.groqClient = new Groq({ apiKey: env.GROQ_API_KEY });
+    }
+    return this.groqClient;
   }
 
   /**
@@ -31,10 +41,10 @@ class GeminiService {
    * @returns {Promise<string>} - Generated text response
    */
   async generateText(prompt, options = {}) {
-    const client = this._ensureClient();
     const model = options.model || this.model;
 
     try {
+      const client = this._ensureClient();
       const response = await client.models.generateContent({
         model,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -43,8 +53,52 @@ class GeminiService {
 
       return response.text;
     } catch (error) {
-      logger.error('[GeminiService] generateText failed:', error.message);
-      throw error;
+      logger.warn('[GeminiService] Gemini failed, attempting Groq fallback:', error.message);
+
+      const groqClient = this._getGroqClient();
+      if (!groqClient) {
+        logger.error('[GeminiService] generateText failed:', error.message);
+        throw error;
+      }
+
+      try {
+        const groqModels = [
+          'llama-3.3-70b-versatile',
+          'llama-3.1-8b-instant',
+          'mixtral-8x7b-32768',
+          'gemma2-9b-it'
+        ];
+
+        let groqErrorToThrow = null;
+        for (const groqModel of groqModels) {
+          try {
+            logger.info(`[GeminiService] Attempting Groq generation with model: ${groqModel}`);
+            const generationConfig = options.generationConfig || {};
+            const completion = await groqClient.chat.completions.create({
+              model: groqModel,
+              messages: [{ role: 'user', content: prompt }],
+              temperature: generationConfig.temperature ?? 0.7,
+              max_tokens: generationConfig.maxOutputTokens ?? 2048,
+            });
+
+            const text = completion.choices?.[0]?.message?.content || '';
+            if (!text) {
+              throw new Error('Groq returned an empty response');
+            }
+
+            logger.info(`[GeminiService] Successfully used Groq (${groqModel}) for text generation`);
+            return text;
+          } catch (groqError) {
+            groqErrorToThrow = groqError;
+            logger.warn(`[GeminiService] Groq model ${groqModel} failed:`, groqError.message);
+          }
+        }
+        logger.error('[GeminiService] All Groq fallback models failed');
+        throw groqErrorToThrow || new Error('Groq fallback failed');
+      } catch (groqError) {
+        logger.error('[GeminiService] Groq fallback failed:', groqError.message);
+        throw groqError;
+      }
     }
   }
 

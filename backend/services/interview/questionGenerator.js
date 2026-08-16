@@ -1,47 +1,29 @@
 const { callStructured } = require('../ai/structuredOutput');
 const { buildRAGContext } = require('../rag/ragService');
+const { z } = require('zod');
 const logger = require('../../utils/logger');
 
 /**
- * Question generation schema for Gemini structured output
+ * Question generation schema for Gemini structured output (Zod schema)
  */
-const questionGenSchema = {
-  type: 'object',
-  properties: {
-    questions: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          topic: { type: 'string' },
-          subtopic: { type: 'string' },
-          difficulty: {
-            type: 'string',
-            enum: ['easy', 'medium', 'hard']
-          },
-          question: { type: 'string' },
-          expectedConcepts: {
-            type: 'array',
-            items: { type: 'string' }
-          },
-          estimatedAnswerSeconds: { type: 'number' },
-          followUpQuestions: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                condition: { type: 'string' },
-                followUpQuestion: { type: 'string' }
-              }
-            }
-          }
-        },
-        required: ['topic', 'difficulty', 'question', 'expectedConcepts', 'estimatedAnswerSeconds']
-      }
-    }
-  },
-  required: ['questions']
-};
+const questionGenSchema = z.object({
+  questions: z.array(
+    z.object({
+      topic: z.string(),
+      subtopic: z.string().optional(),
+      difficulty: z.enum(['easy', 'medium', 'hard']),
+      question: z.string(),
+      expectedConcepts: z.array(z.string()),
+      estimatedAnswerSeconds: z.number(),
+      followUpQuestions: z.array(
+        z.object({
+          condition: z.string().optional(),
+          followUpQuestion: z.string(),
+        })
+      ).optional(),
+    })
+  ),
+});
 
 /**
  * Calculate number of questions based on interview duration
@@ -49,12 +31,12 @@ const questionGenSchema = {
  * @returns {number} - Number of questions to generate
  */
 function calculateQuestionCount(durationMinutes) {
-  // Approximate: 1 question every 5-7 minutes (including follow-ups)
-  if (durationMinutes <= 10) return 1;
-  if (durationMinutes <= 20) return 2;
-  if (durationMinutes <= 30) return 3;
-  if (durationMinutes <= 45) return 5;
-  return 7; // 60 minutes
+  // Generate roughly 1 question per 3 minutes
+  if (durationMinutes <= 10) return 3;
+  if (durationMinutes <= 20) return 6;
+  if (durationMinutes <= 30) return 9;
+  if (durationMinutes <= 45) return 12;
+  return 15; // 60 minutes
 }
 
 /**
@@ -91,19 +73,20 @@ function buildQuestionPrompt(params) {
     limit: 5,
   });
 
-  return `You are an expert technical interview conductor. Generate ${numQuestions} personalized interview questions for the following candidate and scenario.
+  const isHR = interviewType === 'hr';
 
-RETRIEVED KNOWLEDGE CONTEXT:
-${ragContext}
+  let profileSection = `CANDIDATE PROFILE:\n- Experience: ${experienceText}`;
+  if (!isHR) {
+    profileSection += `\n- Skills: ${skillsText}\n- Programming Languages: ${languagesText}\n- Frameworks: ${frameworksText}\n- Databases: ${databasesText}\n- Tools: ${toolsText}`;
+  }
 
+  const ragSection = isHR ? '' : `RETRIEVED KNOWLEDGE CONTEXT:\n${ragContext}\n\n`;
 
-CANDIDATE PROFILE:
-- Skills: ${skillsText}
-- Programming Languages: ${languagesText}
-- Frameworks: ${frameworksText}
-- Databases: ${databasesText}
-- Tools: ${toolsText}
-- Experience: ${experienceText}
+  const conductorRole = isHR ? 'HR and Behavioral' : (interviewType === 'ai_genai' ? 'AI/ML' : 'technical');
+  
+  return `You are an expert ${conductorRole} interview conductor. Generate ${numQuestions} personalized interview questions for the following candidate and scenario.
+
+${ragSection}${profileSection}
 
 INTERVIEW CONFIGURATION:
 - Target Role: ${role}
@@ -114,9 +97,16 @@ INTERVIEW CONFIGURATION:
 INSTRUCTIONS:
 1. Generate exactly ${numQuestions} questions that:
    - Are personalized to the candidate's actual skills and experience
-   - Align with the target role and interview type
+   - STRICTLY align with the specified Interview Type: ${interviewType}
    - Progressively test deeper knowledge
    - Mix conceptual and practical questions
+
+CRITICAL RULE FOR INTERVIEW TYPE:
+- If Interview Type is 'hr', ask ONLY behavioral, cultural fit, situational, and soft-skills questions (e.g., leadership, conflict resolution). Do NOT ask technical coding questions.
+- If Interview Type is 'technical' or 'fullstack', focus heavily on technical, coding, architecture, and system design questions.
+- If Interview Type is 'ai_genai', focus specifically on Artificial Intelligence, Machine Learning, LLMs, and Generative AI concepts.
+- If Interview Type is 'resume_based', directly question the experiences, tools, and projects mentioned in the candidate's profile.
+- If Interview Type is 'company_specific', tailor the questions to the company's domain, culture, or known interview style.
    
 2. Question difficulty distribution:
    - If difficulty='easy': 50% easy, 30% medium, 20% hard
@@ -124,8 +114,8 @@ INSTRUCTIONS:
    - If difficulty='hard': 10% easy, 30% medium, 60% hard
 
 3. For each question, provide:
-   - topic: Main area being tested (e.g., "React", "Database Design")
-   - subtopic: Specific subtopic (e.g., "Hooks", "Normalization")
+   - topic: Main area being tested (e.g., "Behavioral", "React", "Database Design")
+   - subtopic: Specific subtopic (e.g., "Conflict Resolution", "Hooks", "Normalization")
    - difficulty: 'easy', 'medium', or 'hard'
    - question: The actual question to ask
    - expectedConcepts: 3-5 key concepts that should be mentioned in a good answer
@@ -133,14 +123,13 @@ INSTRUCTIONS:
    - followUpQuestions: 1-3 follow-up questions that probe deeper based on the candidate's answer
 
 4. Reference the candidate's actual experience:
-   - If they used React, ask specific React questions (hooks, state management, etc.)
-   - If they worked with databases, ask design or optimization questions
-   - Avoid technologies they don't have on their resume
-   - Make questions progressively harder
+   - Adapt your questions based on their profile, but NEVER violate the CRITICAL RULE FOR INTERVIEW TYPE.
+   - Avoid technologies they don't have on their resume.
+   - Make questions progressively harder.
 
 5. Return ONLY a valid JSON object with no markdown, no explanation, no extra text.
 
-IMPORTANT: The follow-up questions should have a 'condition' field that indicates when to ask it (e.g., "if answer mentions useContext"), and 'followUpQuestion' field with the actual follow-up.
+IMPORTANT: The follow-up questions should have a 'condition' field that indicates when to ask it (e.g., "if answer mentions X"), and 'followUpQuestion' field with the actual follow-up.
 
 Return your response as valid JSON:`;
 }

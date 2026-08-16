@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const interviewController = require('../controllers/interviewController');
-const authMiddleware = require('../middleware/authMiddleware');
+const interviewController = require('../controllers/interview.controller');
+const authMiddleware = require('../middleware/auth.middleware');
 
 // All routes require authentication
 router.use(authMiddleware);
@@ -33,5 +33,8 @@ router.post('/:id/skip-question', interviewController.skipQuestion);
 
 // Complete interview
 router.post('/:id/complete', interviewController.completeInterview);
+
+// Delete interview
+router.delete('/:id', interviewController.deleteInterview);
 
 module.exports = router;

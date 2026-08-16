@@ -23,7 +23,7 @@ const AppNav = () => {
         <div className="coai-nav-logo">
           <FiTarget size={22} />
         </div>
-        <span className="coai-nav-title">COAI</span>
+        <span className="coai-nav-title">CoAI– AI Interview Assistant</span>
       </div>
 
       {/* Navigation Links */}

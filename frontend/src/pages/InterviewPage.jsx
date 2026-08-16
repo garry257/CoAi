@@ -83,6 +83,13 @@ const InterviewPage = () => {
         // Interview complete
         navigate(`/interview/${id}/results`, { replace: true });
       } else if (res.data.nextQuestionNumber) {
+        // Update local interview state
+        setInterview(prev => ({
+          ...prev,
+          questionsAnswered: res.data.totalAnswered,
+          currentQuestionIndex: prev.currentQuestionIndex + 1,
+        }));
+
         // Load next question
         const nextRes = await getCurrentQuestion(id);
         if (nextRes.success) {
@@ -110,6 +117,11 @@ const InterviewPage = () => {
       }
 
       if (res.data.nextQuestion) {
+        // Update local interview state
+        setInterview(prev => ({
+          ...prev,
+          currentQuestionIndex: prev.currentQuestionIndex + 1,
+        }));
         setCurrentQuestion(res.data.nextQuestion);
       } else {
         // No more questions
