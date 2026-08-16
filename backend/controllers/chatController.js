@@ -3,7 +3,7 @@ const { GoogleGenAI } = require('@google/genai');
 const Groq = require('groq-sdk');
 const crypto = require('crypto');
 
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-3.6-flash';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 // Helper to generate a 6-character uppercase share code (e.g., X7K9P2)

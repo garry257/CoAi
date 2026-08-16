@@ -1,0 +1,124 @@
+.interview-timer {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.interview-timer.timer-normal {
+  border-left: 4px solid #4caf50;
+}
+
+.interview-timer.timer-warning {
+  border-left: 4px solid #ff9800;
+  background: #fff8f0;
+}
+
+.interview-timer.timer-critical {
+  border-left: 4px solid #f44336;
+  background: #ffebee;
+  animation: pulse 1s infinite;
+}
+
+.interview-timer.timer-expired {
+  border-left: 4px solid #d32f2f;
+  background: #ffcdd2;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.timer-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.timer-label {
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.timer-value {
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #333;
+  min-width: 140px;
+  text-align: center;
+}
+
+.interview-timer.timer-warning .timer-value {
+  color: #ff9800;
+}
+
+.interview-timer.timer-critical .timer-value {
+  color: #f44336;
+}
+
+.interview-timer.timer-expired .timer-value {
+  color: #d32f2f;
+}
+
+.timer-bar {
+  width: 100%;
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.timer-progress {
+  height: 100%;
+  background: linear-gradient(90deg, #4caf50, #8bc34a);
+  border-radius: 4px;
+  transition: width 1s linear;
+}
+
+.interview-timer.timer-warning .timer-progress {
+  background: linear-gradient(90deg, #ff9800, #ffc107);
+}
+
+.interview-timer.timer-critical .timer-progress {
+  background: linear-gradient(90deg, #f44336, #e91e63);
+}
+
+.timer-message {
+  text-align: center;
+  color: #d32f2f;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-top: 8px;
+  animation: bounce 0.6s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@media (max-width: 768px) {
+  .timer-value {
+    font-size: 1.5rem;
+    min-width: 110px;
+  }
+
+  .timer-label {
+    font-size: 0.8rem;
+  }
+}

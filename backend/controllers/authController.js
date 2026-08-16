@@ -54,3 +54,29 @@ exports.login = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+/**
+ * GET /api/auth/me
+ * Returns the currently authenticated user's profile (no password).
+ */
+exports.getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({
+      success: true,
+      data: {
+        _id: user._id,
+        username: user.username,
+        name: user.name || user.username,
+        email: user.email || '',
+        role: user.role || 'student',
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
