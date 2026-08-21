@@ -209,7 +209,191 @@ async function generateInterviewQuestions(params) {
   }
 }
 
+/**
+ * Helper to extract deduplicated array of candidate skills, languages, frameworks, tools from candidate profile
+ */
+function extractCandidateSkillList(candidateProfile) {
+  const list = [];
+  if (candidateProfile) {
+    if (Array.isArray(candidateProfile.skills)) list.push(...candidateProfile.skills);
+    if (Array.isArray(candidateProfile.languages)) list.push(...candidateProfile.languages);
+    if (Array.isArray(candidateProfile.frameworks)) list.push(...candidateProfile.frameworks);
+    if (Array.isArray(candidateProfile.databases)) list.push(...candidateProfile.databases);
+    if (Array.isArray(candidateProfile.tools)) list.push(...candidateProfile.tools);
+    if (Array.isArray(candidateProfile.claimedTopics)) list.push(...candidateProfile.claimedTopics);
+    
+    // Extract keywords from resumeText if skills array is empty
+    if (list.length === 0 && candidateProfile.resumeText) {
+      const keywords = candidateProfile.resumeText.match(/\b(Java|Python|JavaScript|TypeScript|C\+\+|C#|HTML|CSS|React|Node\.js|Express|MongoDB|SQL|MySQL|PostgreSQL|AWS|Docker|Kubernetes|Git|REST|GraphQL|Redux|Next\.js|Vue|Angular|Spring|Django|Flask)\b/gi);
+      if (keywords) list.push(...keywords);
+    }
+  }
+
+  // Deduplicate case-insensitively while maintaining clean labels
+  const uniqueMap = new Map();
+  for (const s of list) {
+    const clean = String(s).trim();
+    if (clean && !uniqueMap.has(clean.toLowerCase())) {
+      uniqueMap.set(clean.toLowerCase(), clean);
+    }
+  }
+  return Array.from(uniqueMap.values());
+}
+
+/**
+ * Build a full resume snapshot text for the AI interviewer
+ */
+function buildResumeContext(candidateProfile) {
+  if (!candidateProfile) return 'No resume provided.';
+  const parts = [];
+
+  const skills = extractCandidateSkillList(candidateProfile);
+  if (skills.length > 0) parts.push(`SKILLS & TECHNOLOGIES: ${skills.join(', ')}`);
+
+  if (Array.isArray(candidateProfile.experience) && candidateProfile.experience.length > 0) {
+    const exp = candidateProfile.experience.map(e =>
+      `• ${e.role || 'Role'} at ${e.company || 'Company'} (${e.duration || 'N/A'}): ${e.description || ''}`
+    ).join('\n');
+    parts.push(`WORK EXPERIENCE:\n${exp}`);
+  }
+
+  if (Array.isArray(candidateProfile.projects) && candidateProfile.projects.length > 0) {
+    const proj = candidateProfile.projects.map(p =>
+      `• ${p.name || 'Project'}: ${p.description || ''} [Tech: ${(p.techUsed || []).join(', ')}]`
+    ).join('\n');
+    parts.push(`PROJECTS:\n${proj}`);
+  }
+
+  if (Array.isArray(candidateProfile.education) && candidateProfile.education.length > 0) {
+    const edu = candidateProfile.education.map(e =>
+      `• ${e.degree || 'Degree'} from ${e.institution || 'Institution'} (${e.year || ''})`
+    ).join('\n');
+    parts.push(`EDUCATION:\n${edu}`);
+  }
+
+  if (Array.isArray(candidateProfile.certifications) && candidateProfile.certifications.length > 0) {
+    parts.push(`CERTIFICATIONS: ${candidateProfile.certifications.join(', ')}`);
+  }
+
+  if (candidateProfile.resumeText && parts.length <= 1) {
+    parts.push(`RESUME TEXT:\n${candidateProfile.resumeText.slice(0, 1500)}`);
+  }
+
+  return parts.join('\n\n') || 'No detailed profile information.';
+}
+
+/**
+ * Generate a single question fast for real-time interview stream.
+ * Acts like a real interviewer — covers all resume aspects holistically:
+ * languages, projects, experience, tools, system design, and behavioral.
+ */
+async function generateSingleQuestion(params) {
+  const {
+    role,
+    interviewType,
+    difficulty = 'medium',
+    candidateProfile,
+    company,
+    questionNumber = 1,
+    previousQuestions = []
+  } = params;
+
+  const isHR = interviewType === 'hr';
+  const conductorRole = isHR ? 'HR and Behavioral' : (interviewType === 'ai_genai' ? 'AI/ML' : 'Technical');
+  const companyContext = company ? ` at ${company}` : '';
+  const prevText = (previousQuestions || []).map(q => `Q${q.questionNumber || ''}: ${q.question}`).slice(-5).join('\n');
+  const resumeContext = buildResumeContext(candidateProfile);
+
+  // Determine coverage area for this question to ensure broad resume coverage
+  const coverageAreas = [
+    'a core programming language or syntax concept from their resume',
+    'a framework or library they listed (ask about real usage, patterns, or challenges)',
+    'one of their projects (ask about architecture, decisions made, or challenges faced)',
+    'a database or backend technology they mentioned',
+    'a tool, deployment, or DevOps technology from their resume',
+    'system design or how they would build something related to their tech stack',
+    'a behavioral or soft-skill scenario relevant to their experience',
+    'debugging or problem-solving in a technology they listed',
+    'a concept connecting multiple technologies on their resume',
+    'code quality, testing, or best practices relevant to their stack',
+  ];
+  const coverageInstruction = coverageAreas[(questionNumber - 1) % coverageAreas.length];
+
+  const prompt = `You are an experienced ${conductorRole} interviewer conducting a professional interview for the role of ${role} (${difficulty} difficulty)${companyContext}.
+
+You have carefully read the candidate's full resume below:
+
+===== CANDIDATE RESUME =====
+${resumeContext}
+============================
+
+QUESTIONS ALREADY ASKED (do NOT repeat these):
+${prevText || 'None — this is Question #1.'}
+
+YOUR TASK — Ask Question #${questionNumber}:
+Focus area for this question: ${coverageInstruction}
+
+RULES:
+1. You are a real interviewer — ask ONE clear, focused, natural interview question.
+2. Draw inspiration from the candidate's ACTUAL resume content (their specific projects, exact tech stack, real experience).
+3. The question must be different from ALL previously asked questions above.
+4. It must match the interview type: ${interviewType}.
+5. Do NOT ask about the same thing asked before. Cover new ground each time.
+6. Make it feel like a natural conversation — vary between technical, conceptual, scenario-based, and project-based questions.
+
+Return ONLY this JSON:
+{
+  "topic": "The specific topic area (e.g. React, Node.js, Project Name, System Design)",
+  "subtopic": "Specific concept being tested",
+  "difficulty": "${difficulty}",
+  "question": "Your interview question here",
+  "expectedConcepts": ["concept1", "concept2", "concept3"]
+}`;
+
+  const singleQuestionSchema = z.object({
+    topic: z.string().optional().default('General'),
+    subtopic: z.string().optional().default('General'),
+    difficulty: z.string().optional().default(difficulty),
+    question: z.string(),
+    expectedConcepts: z.array(z.string()).optional().default([]),
+  });
+
+  try {
+    const q = await callStructured(prompt, singleQuestionSchema);
+    return {
+      topic: q.topic || 'General',
+      subtopic: q.subtopic || 'General',
+      difficulty: ['easy', 'medium', 'hard'].includes(q.difficulty) ? q.difficulty : difficulty,
+      question: q.question,
+      expectedConcepts: Array.isArray(q.expectedConcepts) ? q.expectedConcepts : [],
+      estimatedAnswerSeconds: 120,
+      followUpQuestions: [],
+      questionNumber,
+      status: 'pending',
+    };
+  } catch (err) {
+    logger.warn('[QuestionGenerator] Fast single question fallback used:', err.message);
+    const skills = extractCandidateSkillList(candidateProfile);
+    const randomSkill = skills.length > 0 ? skills[(questionNumber - 1) % skills.length] : role;
+    return {
+      topic: randomSkill,
+      subtopic: 'Practical Application',
+      difficulty,
+      question: `Can you walk me through a project or scenario where you used ${randomSkill}? What challenges did you face and how did you solve them?`,
+      expectedConcepts: [randomSkill, 'Problem Solving', 'Real-world Application'],
+      estimatedAnswerSeconds: 120,
+      followUpQuestions: [],
+      questionNumber,
+      status: 'pending',
+    };
+  }
+}
+
 module.exports = {
   generateInterviewQuestions,
+  generateSingleQuestion,
+  extractCandidateSkillList,
   calculateQuestionCount,
 };
+
+

@@ -23,8 +23,12 @@ body {
   background-color: var(--bg-dark);
   color: var(--text-primary);
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
+
 
 #root {
   height: 100%;
@@ -33,8 +37,11 @@ body {
 .app-container {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
+  width: 100svw;
 }
+
 
 /* Sidebar Styles */
 .sidebar {
@@ -188,6 +195,20 @@ body {
   background-color: var(--bg-input);
   color: var(--text-primary);
 }
+
+/* Reveal delete button on hover */
+.chat-item:hover .chat-delete-btn {
+  opacity: 1 !important;
+}
+.chat-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.12) !important;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 
 /* Main Chat Area */
 .main-chat {
@@ -1736,3 +1757,947 @@ textarea::placeholder {
   transform: translateY(-1px);
 }
 
+/* ---- Formatted AI Research Answer Styles ---- */
+.coai-formatted-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  color: #cbd5e1;
+  font-size: 1.02rem;
+  line-height: 1.7;
+}
+
+.coai-section-header {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+.coai-section-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #a78bfa, #60a5fa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.coai-section-subtitle {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #93c5fd;
+  margin-top: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.coai-paragraph-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.coai-text-line {
+  margin: 0;
+  color: #e2e8f0;
+}
+
+.coai-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  transition: all 0.2s ease;
+}
+
+.coai-list-item:hover {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.coai-list-bullet {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  margin-top: 2px;
+}
+
+.coai-list-content {
+  flex: 1;
+  color: #e2e8f0;
+  line-height: 1.6;
+}
+
+/* Responsive Table Styling */
+.coai-table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  margin: 1.25rem 0;
+  border-radius: 12px;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.coai-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.92rem;
+}
+
+.coai-data-table th {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a78bfa;
+  font-weight: 700;
+  padding: 0.9rem 1.1rem;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.coai-data-table td {
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  vertical-align: middle;
+}
+
+.coai-data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.coai-data-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.coai-inline-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.3));
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  color: #c084fc;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.coai-inline-link-btn:hover {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+/* ═══════════════════════════════════════════════════════
+   MARKDOWN BODY — AI response rich formatting
+   ═══════════════════════════════════════════════════════ */
+
+.markdown-body {
+  line-height: 1.75;
+  color: var(--text-primary, #f1f5f9);
+  font-size: 0.95rem;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Paragraphs */
+.markdown-body .md-p {
+  margin: 0 0 0.85rem 0;
+}
+.markdown-body .md-p:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.markdown-body .md-h1,
+.markdown-body .md-h2,
+.markdown-body .md-h3 {
+  font-weight: 700;
+  color: #e2e8f0;
+  margin: 1.2rem 0 0.5rem;
+  line-height: 1.3;
+}
+.markdown-body .md-h1 { font-size: 1.4rem; border-bottom: 2px solid rgba(99,102,241,0.3); padding-bottom: 0.4rem; }
+.markdown-body .md-h2 { font-size: 1.2rem; border-bottom: 1px solid rgba(99,102,241,0.2); padding-bottom: 0.3rem; }
+.markdown-body .md-h3 { font-size: 1.05rem; color: #a5b4fc; }
+
+/* Bold */
+.markdown-body .md-strong {
+  color: #f1f5f9;
+  font-weight: 700;
+}
+
+/* Lists */
+.markdown-body .md-ul,
+.markdown-body .md-ol {
+  margin: 0.5rem 0 0.85rem 1.5rem;
+  padding: 0;
+}
+.markdown-body .md-li {
+  margin-bottom: 0.35rem;
+}
+.markdown-body .md-li::marker {
+  color: #818cf8;
+}
+
+/* Blockquotes */
+.markdown-body .md-blockquote {
+  border-left: 4px solid #6366f1;
+  background: rgba(99,102,241,0.08);
+  margin: 0.75rem 0;
+  padding: 0.65rem 1rem;
+  border-radius: 0 8px 8px 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Inline code */
+.markdown-body .md-inline-code {
+  background: rgba(99,102,241,0.15);
+  border: 1px solid rgba(99,102,241,0.25);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.85em;
+  color: #a5b4fc;
+}
+
+/* Code blocks */
+.markdown-body .md-code-block {
+  background: #0f172a;
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 10px;
+  margin: 0.85rem 0;
+  overflow: hidden;
+}
+.markdown-body .md-code-lang {
+  background: rgba(99,102,241,0.15);
+  color: #818cf8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 5px 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(99,102,241,0.15);
+  font-family: monospace;
+}
+.markdown-body .md-code-block pre {
+  margin: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+}
+.markdown-body .md-code-block pre code {
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: #e2e8f0;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* Tables */
+.markdown-body .md-table-wrapper {
+  overflow-x: auto;
+  margin: 0.85rem 0;
+  border-radius: 10px;
+  border: 1px solid rgba(99,102,241,0.25);
+}
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.markdown-body thead {
+  background: rgba(99,102,241,0.18);
+  position: sticky;
+  top: 0;
+}
+.markdown-body th {
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 700;
+  color: #c7d2fe;
+  border-bottom: 2px solid rgba(99,102,241,0.3);
+  white-space: nowrap;
+}
+.markdown-body td {
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  color: #cbd5e1;
+  vertical-align: top;
+}
+.markdown-body tbody tr:last-child td {
+  border-bottom: none;
+}
+.markdown-body tbody tr:hover {
+  background: rgba(99,102,241,0.06);
+}
+
+/* Links */
+.markdown-body .md-link {
+  color: #818cf8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+.markdown-body .md-link:hover {
+  color: #a5b4fc;
+}
+
+/* Horizontal rule */
+.markdown-body .md-hr {
+  border: none;
+  border-top: 1px solid rgba(99,102,241,0.25);
+  margin: 1rem 0;
+}
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — Full layout for phones & tablets
+   ═══════════════════════════════════════════════════════ */
+
+/* Ensure proper viewport scaling */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ── Bottom Tab Bar (mobile only) ──────────────────────── */
+.coai-bottom-nav {
+  display: none;
+}
+
+/* ── Hamburger button (mobile only) ────────────────────── */
+.coai-nav-hamburger {
+  display: none;
+}
+
+/* ── Mobile dropdown menu ──────────────────────────────── */
+.coai-mobile-menu {
+  display: none;
+}
+
+/* ── Sidebar mobile toggle button ──────────────────────── */
+.sidebar-mobile-toggle {
+  display: none;
+}
+
+/* ── Sidebar drawer overlay ────────────────────────────── */
+.sidebar-drawer-overlay {
+  display: none;
+}
+
+/* ── Sidebar inner (shared between desktop + drawer) ───── */
+.sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ════════════════════════════════════════════════════════
+   TABLET  (≤ 900px)
+   ════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  /* Shrink sidebar on tablets */
+  .sidebar-desktop {
+    width: 220px;
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   MOBILE  (≤ 640px)
+   ════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* Stop body from overflowing horizontally */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* ── App wrapper — leave room for bottom tab bar ───── */
+  .coai-app-wrapper {
+    padding-bottom: 60px !important;
+  }
+  .coai-app-content {
+    height: calc(100dvh - 48px - 60px) !important;
+    overflow: hidden;
+  }
+
+  /* ── Top nav — show only brand + hamburger ──────────── */
+  .coai-nav {
+    padding: 0 14px;
+    height: 48px;
+  }
+  .coai-nav-links {
+    display: none !important;
+  }
+  .coai-nav-user {
+    display: none !important;
+  }
+  .coai-nav-hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #f1f5f9;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    margin-left: auto;
+    transition: background 0.2s;
+  }
+  .coai-nav-hamburger:hover {
+    background: rgba(255,255,255,0.08);
+  }
+  .coai-nav-title {
+    font-size: 0.85rem;
+  }
+
+  /* ── Mobile dropdown menu ───────────────────────────── */
+  .coai-mobile-menu {
+    display: block;
+    position: fixed;
+    inset: 48px 0 0 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    animation: fadeIn 0.15s ease;
+  }
+  .coai-mobile-menu-inner {
+    background: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  .coai-mobile-user-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0 14px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 8px;
+  }
+  .coai-mobile-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 10px;
+    border-radius: 10px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.95rem;
+    transition: all 0.15s;
+  }
+  .coai-mobile-link.active,
+  .coai-mobile-link:hover {
+    background: rgba(99,102,241,0.12);
+    color: #a5b4fc;
+  }
+
+  /* ── Bottom Tab Bar ────────────────────────────────── */
+  .coai-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: var(--bg-sidebar);
+    border-top: 1px solid var(--border-color);
+    z-index: 150;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+  }
+  .coai-bottom-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    color: #64748b;
+    text-decoration: none;
+    font-size: 0.65rem;
+    font-weight: 600;
+    transition: color 0.15s;
+    padding: 6px 4px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .coai-bottom-tab.active {
+    color: #818cf8;
+  }
+  .coai-bottom-tab svg {
+    transition: transform 0.15s;
+  }
+  .coai-bottom-tab.active svg {
+    transform: scale(1.15);
+  }
+
+  /* ── Chat layout — full width, no sidebar ──────────── */
+  .app-container {
+    flex-direction: column;
+    height: 100%;
+  }
+  .sidebar-desktop {
+    display: none !important;
+  }
+  .main-chat {
+    height: 100%;
+    width: 100%;
+  }
+
+  /* ── Sidebar mobile toggle button ──────────────────── */
+  .sidebar-mobile-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.2s;
+  }
+  .sidebar-mobile-toggle:hover {
+    color: #f1f5f9;
+    border-color: #818cf8;
+  }
+  .main-chat {
+    position: relative;
+  }
+  .chat-window {
+    padding-top: 3rem; /* space for toggle button */
+  }
+
+  /* ── Sidebar drawer ────────────────────────────────── */
+  .sidebar-drawer-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(3px);
+    z-index: 300;
+    animation: fadeIn 0.15s ease;
+  }
+  .sidebar-drawer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    max-width: 85vw;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    animation: slideInLeft 0.22s ease;
+    padding: 0;
+  }
+  @keyframes slideInLeft {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(0); }
+  }
+  .sidebar-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-dark);
+  }
+  .sidebar-drawer .sidebar-inner {
+    padding: 12px;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Message input area ────────────────────────────── */
+  .input-area {
+    padding: 8px;
+  }
+  .input-container {
+    gap: 6px !important;
+  }
+  .input-container textarea {
+    font-size: 16px !important; /* prevent iOS zoom on focus */
+    min-height: 44px;
+  }
+  .send-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* ── Messages ──────────────────────────────────────── */
+  .message-wrapper {
+    padding: 0.875rem 0.75rem;
+  }
+  .message-content {
+    gap: 0.75rem;
+    max-width: 100%;
+  }
+  .avatar {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+  }
+  .text-content {
+    font-size: 0.9rem;
+  }
+  .markdown-body {
+    font-size: 0.875rem;
+  }
+  .markdown-body .md-code-block pre {
+    font-size: 0.78rem;
+  }
+  .markdown-body table {
+    font-size: 0.78rem;
+  }
+  .markdown-body th,
+  .markdown-body td {
+    padding: 7px 10px;
+  }
+
+  /* ── Auth page ─────────────────────────────────────── */
+  .auth-container {
+    padding: 24px 18px !important;
+    margin: 12px;
+    max-width: 100% !important;
+  }
+
+  /* ── Modal ─────────────────────────────────────────── */
+  .modal-content {
+    width: calc(100vw - 32px);
+    max-width: 100%;
+    margin: 16px;
+    padding: 20px !important;
+  }
+  .coai-modal-content {
+    max-height: 95dvh;
+    margin: 8px;
+  }
+  .coai-modal-header {
+    padding: 20px 18px;
+  }
+  .coai-modal-header h2 {
+    font-size: 1.2rem;
+  }
+  .coai-interview-form {
+    padding: 20px 18px;
+    gap: 18px;
+  }
+
+  /* ── Dashboard / pages ─────────────────────────────── */
+  .coai-config-page {
+    padding: 16px 12px;
+  }
+  .coai-config-section {
+    padding: 20px 16px;
+  }
+  .coai-config-form {
+    padding: 20px 16px;
+    gap: 18px;
+  }
+  .coai-config-title {
+    font-size: 1.4rem;
+  }
+  .coai-config-header {
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .coai-mode-selector {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .coai-mode-btn {
+    padding: 16px 10px;
+    gap: 8px;
+  }
+  .coai-difficulty-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .coai-difficulty-option {
+    padding: 12px 6px;
+  }
+  .coai-config-actions {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .coai-config-btn-primary,
+  .coai-config-btn-secondary {
+    padding: 14px;
+    font-size: 0.88rem;
+  }
+
+  /* ── Research / other pages ────────────────────────── */
+  .coai-app-content {
+    overflow-y: auto;
+  }
+
+  /* ── Guest banner ──────────────────────────────────── */
+  .sidebar-mobile-toggle + .main-chat .chat-window {
+    padding-top: 2.5rem;
+  }
+
+  /* ── Document chips row ────────────────────────────── */
+  .input-area [style*="Context docs"] {
+    flex-wrap: wrap;
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   VERY SMALL PHONES  (≤ 380px)
+   ════════════════════════════════════════════════════════ */
+@media (max-width: 380px) {
+  .coai-nav-title {
+    font-size: 0.75rem;
+  }
+  .coai-bottom-tab span {
+    font-size: 0.58rem;
+  }
+  .coai-mode-selector {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DEVICE-SPECIFIC RESPONSIVE SYSTEM
+   Covers: iPhone SE → 14 Pro Max, Samsung Galaxy, iPad, Laptop, 4K
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── GLOBAL: iPhone notch / Dynamic Island / Android safe areas ── */
+:root {
+  --safe-top:    env(safe-area-inset-top,    0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left,   0px);
+  --safe-right:  env(safe-area-inset-right,  0px);
+}
+
+/* Bottom tab bar respects home indicator on iPhone */
+.coai-bottom-nav {
+  padding-bottom: var(--safe-bottom);
+  height: calc(60px + var(--safe-bottom));
+}
+
+/* Top nav respects status bar / notch */
+.coai-nav {
+  padding-top: var(--safe-top);
+}
+
+/* ══════════════════════════════════════════════════════
+   XS — iPhone SE 1st gen, Galaxy A03 (≤ 360px)
+   ══════════════════════════════════════════════════════ */
+@media screen and (max-width: 360px) {
+  .coai-nav-title { font-size: 0.72rem; letter-spacing: -0.3px; }
+  .coai-nav-logo  { width: 28px; height: 28px; }
+  .message-wrapper { padding: 0.7rem 0.6rem; }
+  .text-content { font-size: 0.82rem; }
+  .markdown-body { font-size: 0.82rem; line-height: 1.6; }
+  .coai-bottom-tab span { display: none; } /* icon only at tiny sizes */
+  .coai-bottom-tab { padding: 8px 0; }
+  .coai-bottom-nav { height: calc(52px + var(--safe-bottom)); }
+  .input-container textarea { min-height: 40px; font-size: 15px !important; }
+}
+
+/* ══════════════════════════════════════════════════════
+   SM — iPhone SE 2/3, 12 Mini, Galaxy S22/S23 (361–390px)
+   ══════════════════════════════════════════════════════ */
+@media screen and (min-width: 361px) and (max-width: 390px) {
+  .coai-nav-title { font-size: 0.8rem; }
+  .message-content { gap: 0.65rem; }
+  .text-content { font-size: 0.88rem; }
+  .markdown-body { font-size: 0.88rem; }
+  .coai-config-title { font-size: 1.2rem; }
+  .coai-mode-selector { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .coai-mode-btn { padding: 14px 8px; font-size: 0.82rem; }
+}
+
+/* ══════════════════════════════════════════════════════
+   MD — iPhone 12/13/14, Pixel 7, Galaxy S23+ (391–430px)
+   ══════════════════════════════════════════════════════ */
+@media screen and (min-width: 391px) and (max-width: 430px) {
+  .coai-nav-title { font-size: 0.85rem; }
+  .message-content { gap: 0.75rem; max-width: 100%; }
+  .text-content { font-size: 0.9rem; }
+  .markdown-body { font-size: 0.9rem; }
+  .avatar { width: 28px; height: 28px; }
+  .sidebar-desktop { display: none !important; }
+  .coai-config-title { font-size: 1.3rem; }
+  .coai-mode-selector { grid-template-columns: 1fr 1fr; }
+}
+
+/* ══════════════════════════════════════════════════════
+   LG-PHONE — iPhone 14 Plus/Pro Max, Galaxy S23 Ultra (431–480px)
+   ══════════════════════════════════════════════════════ */
+@media screen and (min-width: 431px) and (max-width: 480px) {
+  .sidebar-desktop { display: none !important; }
+  .message-content { max-width: 100%; }
+  .markdown-body { font-size: 0.92rem; }
+  .coai-config-title { font-size: 1.4rem; }
+}
+
+/* ══════════════════════════════════════════════════════
+   PHABLET — Galaxy Note, OnePlus, Z Fold outer (481–640px)
+   ══════════════════════════════════════════════════════ */
+@media screen and (min-width: 481px) and (max-width: 640px) {
+  .sidebar-desktop { display: none !important; }
+  .message-content { max-width: 100%; }
+  .markdown-body { font-size: 0.93rem; }
+  /* Wider phones can show slightly bigger code */
+  .markdown-body .md-code-block pre { font-size: 0.82rem; }
+}
+
+/* ══════════════════════════════════════════════════════
+   LANDSCAPE PHONES — rotated iPhone/Android
+   ══════════════════════════════════════════════════════ */
+@media screen and (max-height: 500px) and (orientation: landscape) {
+  .coai-nav {
+    height: 40px;
+    padding: 0 12px;
+  }
+  .coai-nav-logo { width: 26px; height: 26px; }
+  .coai-bottom-nav {
+    height: calc(48px + var(--safe-bottom));
+  }
+  .coai-bottom-tab {
+    font-size: 0.6rem;
+    padding: 4px;
+    gap: 1px;
+  }
+  .coai-bottom-tab svg { width: 16px; height: 16px; }
+  .chat-window { padding-top: 2.5rem; }
+  /* Left/right safe area for landscape notch */
+  .sidebar { padding-left: calc(12px + var(--safe-left)); }
+  .main-chat { padding-right: calc(8px + var(--safe-right)); }
+  .message-wrapper { padding: 0.6rem 0.75rem; }
+  .input-area { padding: 6px 8px; }
+  .coai-config-page { padding: 8px; }
+  .coai-modal-content { max-height: 95dvh; }
+}
+
+/* ══════════════════════════════════════════════════════
+   TABLET — iPad Mini, iPad Air, Surface Go (641–900px)
+   ══════════════════════════════════════════════════════ */
+@media screen and (min-width: 641px) and (max-width: 900px) {
+  /* Show sidebar but narrower */
+  .sidebar-desktop { display: flex !important; width: 220px; }
+  .coai-bottom-nav { display: none; }
+  .coai-nav-hamburger { display: none; }
+  .coai-nav-links { display: flex !important; }
+  .coai-nav-user { display: flex !important; }
+  /* Slightly reduced message padding */
+  .message-wrapper { padding: 1.2rem 1rem; }
+  .message-content { max-width: 680px; }
+  .coai-config-section { padding: 28px 24px; }
+  .coai-config-form { padding: 28px 24px; }
+  /* Compact nav links on tablets */
+  .coai-nav-link span { font-size: 0.82rem; }
+}
+
+/* ══════════════════════════════════════════════════════
+   LARGE TABLET — iPad Pro 11", Surface Pro (901–1024px)
+   ══════════════════════════════════════════════════════ */
+@media screen and (min-width: 901px) and (max-width: 1024px) {
+  .sidebar { width: 240px; }
+  .message-content { max-width: 720px; }
+  .coai-config-container { max-width: 800px; }
+  .coai-nav-link span { font-size: 0.85rem; }
+}
+
+/* ══════════════════════════════════════════════════════
+   LAPTOP — MacBook Air/Pro 13", most laptops (1025–1280px)
+   ══════════════════════════════════════════════════════ */
+@media screen and (min-width: 1025px) {
+  .sidebar { width: 280px; }
+  .message-content { max-width: 800px; }
+  .coai-bottom-nav { display: none !important; }
+  .coai-mobile-menu { display: none !important; }
+  .coai-nav-hamburger { display: none !important; }
+  .sidebar-mobile-toggle { display: none !important; }
+  .sidebar-drawer-overlay { display: none !important; }
+  /* Full nav */
+  .coai-nav-links { display: flex !important; }
+  .coai-nav-user { display: flex !important; }
+  .sidebar-desktop { display: flex !important; }
+}
+
+/* ══════════════════════════════════════════════════════
+   HD LAPTOP — MacBook Pro 16", 1440p displays (1281–1440px)
+   ══════════════════════════════════════════════════════ */
+@media screen and (min-width: 1281px) and (max-width: 1440px) {
+  .sidebar { width: 300px; }
+  .message-content { max-width: 860px; }
+  .text-content { font-size: 1rem; }
+  .markdown-body { font-size: 1rem; }
+  .coai-config-container { max-width: 950px; }
+}
+
+/* ══════════════════════════════════════════════════════
+   DESKTOP — 1080p monitors, iMac (1441–1920px)
+   ══════════════════════════════════════════════════════ */
+@media screen and (min-width: 1441px) and (max-width: 1920px) {
+  .sidebar { width: 320px; }
+  .message-content { max-width: 900px; }
+  .text-content { font-size: 1.02rem; }
+  .markdown-body { font-size: 1rem; }
+  .coai-config-container { max-width: 1000px; }
+  .coai-nav-title { font-size: 1.05rem; }
+}
+
+/* ══════════════════════════════════════════════════════
+   WIDE / 4K — 2K, 4K, ultrawide monitors (1921px+)
+   ══════════════════════════════════════════════════════ */
+@media screen and (min-width: 1921px) {
+  .sidebar { width: 360px; }
+  .message-content { max-width: 960px; }
+  .text-content { font-size: 1.05rem; }
+  .markdown-body { font-size: 1.02rem; }
+  .coai-config-container { max-width: 1100px; }
+  .coai-nav { height: 60px; }
+  .coai-nav-logo { width: 40px; height: 40px; }
+  .coai-nav-title { font-size: 1.1rem; }
+  .coai-nav-link { padding: 0.6rem 1rem; font-size: 0.95rem; }
+}
+
+/* ══════════════════════════════════════════════════════
+   PRINT — for result pages
+   ══════════════════════════════════════════════════════ */
+@media print {
+  .coai-nav, .coai-bottom-nav, .sidebar { display: none !important; }
+  .main-chat, .app-container { height: auto !important; }
+  .message-wrapper { break-inside: avoid; }
+}

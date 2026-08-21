@@ -61,6 +61,23 @@ exports.login = async (req, res) => {
  */
 exports.getMe = async (req, res) => {
   try {
+    // Guest users: return profile from JWT payload directly (no DB user)
+    if (req.user.isGuest) {
+      return res.json({
+        success: true,
+        data: {
+          _id: req.user.id,
+          username: req.user.username,
+          name: req.user.username,
+          email: '',
+          role: 'guest',
+          isGuest: true,
+          guestChatId: req.user.guestChatId,
+          shareCode: req.user.shareCode,
+        },
+      });
+    }
+
     const user = await User.findById(req.user.id).select('-password');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -75,6 +92,47 @@ exports.getMe = async (req, res) => {
         role: user.role || 'student',
         createdAt: user.createdAt,
       },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+/**
+ * POST /api/auth/guest-join
+ * Issues a short-lived guest token tied to a specific share code.
+ * The guest can only access that shared chat — not any other part of the app.
+ */
+exports.guestJoin = async (req, res) => {
+  const Chat = require('../models/chat.model');
+  const { shareCode, displayName } = req.body;
+
+  if (!shareCode) {
+    return res.status(400).json({ error: 'Share code is required' });
+  }
+
+  try {
+    const chat = await Chat.findOne({ shareCode: shareCode.trim().toUpperCase() });
+    if (!chat) {
+      return res.status(404).json({ error: 'No chat found with this share code. Please check and try again.' });
+    }
+
+    // Create a temporary guest identity (no DB user — just a signed JWT)
+    const guestName = (displayName || 'Guest').trim().substring(0, 30);
+    const guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+    const token = jwt.sign(
+      { id: guestId, username: guestName, isGuest: true, guestChatId: chat._id.toString(), shareCode: chat.shareCode },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      username: guestName,
+      isGuest: true,
+      guestChatId: chat._id.toString(),
+      chatTitle: chat.title || 'Shared Chat',
+      shareCode: chat.shareCode,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

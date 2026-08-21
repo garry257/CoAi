@@ -20,15 +20,12 @@ import InterviewResults from './pages/InterviewResults';
 import ResearchAgent from './pages/ResearchAgent';
 
 function App() {
-  const { isAuthenticated, loading, setToken } = useAuth();
+  const { isAuthenticated, loading, isGuest, guestChatId, setToken } = useAuth();
 
-  // Auth.jsx does its own axios call and passes back (token, username).
-  // We push the token into AuthContext state — this triggers fetchUser()
-  // via the useEffect in AuthContext, which flips isAuthenticated to true.
   const handleAuthSuccess = (newToken, username) => {
     localStorage.setItem('token', newToken);
     localStorage.setItem('username', username);
-    setToken(newToken); // ← this is the key: updates React state in AuthContext
+    setToken(newToken);
   };
 
   if (loading) {
@@ -39,11 +36,53 @@ function App() {
     );
   }
 
-  // Not logged in → show Auth component (existing UI, unchanged)
+  // Not logged in → show Auth component
   if (!isAuthenticated) {
     return <Auth onAuthSuccess={handleAuthSuccess} />;
   }
 
+  // ─── GUEST MODE ───────────────────────────────────────────────────────────
+  // Guest users joined via share code: show ONLY the chat page.
+  // No AppNav, no access to Dashboard / Profile / Interview / Research.
+  if (isGuest) {
+    return (
+      <div className="coai-app-wrapper">
+        {/* Minimal guest header */}
+        <div style={{
+          height: '48px',
+          background: 'var(--bg-secondary, #1e293b)',
+          borderBottom: '1px solid var(--border-color, #334155)',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 20px',
+          gap: '10px',
+        }}>
+          <span style={{ fontSize: '1.1rem' }}>💬</span>
+          <span style={{ fontWeight: '700', color: 'var(--text-primary, #f1f5f9)', fontSize: '0.95rem' }}>
+            Shared Chat Room
+          </span>
+          <span style={{
+            marginLeft: 'auto',
+            fontSize: '0.75rem',
+            background: 'rgba(99,102,241,0.15)',
+            color: '#a5b4fc',
+            border: '1px solid rgba(99,102,241,0.3)',
+            borderRadius: '20px',
+            padding: '3px 10px',
+            fontWeight: '600',
+          }}>
+            👤 Guest
+          </span>
+        </div>
+        {/* Guest sees ONLY the chat — locked to their joined chat */}
+        <main className="coai-app-content">
+          <ChatPage guestChatId={guestChatId} />
+        </main>
+      </div>
+    );
+  }
+
+  // ─── FULL USER MODE ───────────────────────────────────────────────────────
   return (
     <div className="coai-app-wrapper">
       {/* Top navigation bar — only visible when authenticated */}

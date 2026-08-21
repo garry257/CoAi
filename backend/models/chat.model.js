@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const messageSchema = new mongoose.Schema({
   role: {
     type: String,
-    enum: ['user', 'model'],
+    enum: ['user', 'model', 'system'],
     required: true
   },
   content: {
@@ -11,6 +11,12 @@ const messageSchema = new mongoose.Schema({
     required: true
   }
 }, { _id: false });
+
+const documentSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  extractedText: { type: String, required: true },
+  uploadedAt: { type: Date, default: Date.now },
+});
 
 const chatSchema = new mongoose.Schema({
   title: {
@@ -32,6 +38,7 @@ const chatSchema = new mongoose.Schema({
     ref: 'User'
   }],
   messages: [messageSchema],
+  documents: [documentSchema],
 }, { timestamps: true });
 
 module.exports = mongoose.model('Chat', chatSchema);

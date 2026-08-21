@@ -29,14 +29,13 @@ function isTransientError(error) {
  * @throws {Error} - If response fails validation after retries exhausted
  */
 async function callStructured(prompt, schema, options = {}) {
-  const maxAttempts = 5;
+  const maxAttempts = 2;
   let lastError = null;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       let effectivePrompt = prompt;
 
-      // On retry, append a fix instruction (only for validation errors, not transient API errors)
       if (attempt > 0 && lastError && !isTransientError(lastError)) {
         effectivePrompt += `\n\n[SYSTEM: Your previous response was invalid JSON. Error: ${lastError.message}. Please output ONLY valid JSON matching the required schema. No markdown fences, no explanation.]`;
       }
@@ -67,19 +66,12 @@ async function callStructured(prompt, schema, options = {}) {
       return result.data;
     } catch (error) {
       lastError = error;
-      const transient = isTransientError(error);
-      logger.warn(`[StructuredOutput] Attempt ${attempt + 1}/${maxAttempts} failed${transient ? ' (transient, will retry)' : ''}: ${error.message}`);
+      logger.warn(`[StructuredOutput] Attempt ${attempt + 1}/${maxAttempts} failed: ${error.message}`);
 
       if (attempt < maxAttempts - 1) {
-        // Calculate exponential backoff: 1s, 2s, 4s, 8s
-        const delayMs = Math.min(1000 * Math.pow(2, attempt), 10000);
-        if (transient || attempt > 0) {
-          logger.info(`[StructuredOutput] Waiting ${delayMs}ms before retry...`);
-          await sleep(delayMs);
-        }
+        await sleep(300);
       } else {
-        logger.error('[StructuredOutput] All retries exhausted');
-        const aiError = new Error(`AI structured output failed after ${maxAttempts} attempts: ${error.message}`);
+        const aiError = new Error(`AI structured output failed: ${error.message}`);
         aiError.name = 'AIOutputError';
         throw aiError;
       }

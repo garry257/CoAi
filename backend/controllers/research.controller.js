@@ -13,7 +13,8 @@ exports.queryResearchAgent = async (req, res) => {
       return apiResponse.error(res, 'A prompt query is required', 400);
     }
 
-    const result = await runResearchAgent(prompt.trim());
+    const userId = req.user?._id || req.user?.id;
+    const result = await runResearchAgent(prompt.trim(), { userId });
 
     return apiResponse.success(res, result, 'AI research agent query completed successfully');
   } catch (error) {

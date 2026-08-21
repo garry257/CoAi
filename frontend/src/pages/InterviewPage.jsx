@@ -83,11 +83,12 @@ const InterviewPage = () => {
         // Interview complete
         navigate(`/interview/${id}/results`, { replace: true });
       } else if (res.data.nextQuestionNumber) {
-        // Update local interview state
+        // Update local interview state with latest counts from server
         setInterview(prev => ({
           ...prev,
           questionsAnswered: res.data.totalAnswered,
           currentQuestionIndex: prev.currentQuestionIndex + 1,
+          totalQuestionsPlanned: res.data.totalQuestions ?? prev.totalQuestionsPlanned,
         }));
 
         // Load next question

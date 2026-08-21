@@ -9,10 +9,14 @@ const VOICE_WS_URL = isProd
 export const useAudioStream = (interviewId) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState(null);
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [selectedVoiceIndex, setSelectedVoiceIndex] = useState(0);
 
   const wsRef = useRef(null);
+  const recognitionRef = useRef(null);
   const audioContextRef = useRef(null);
   const streamRef = useRef(null);
   const processorRef = useRef(null);
@@ -20,7 +24,112 @@ export const useAudioStream = (interviewId) => {
   const reconnectTimerRef = useRef(null);
   const nextPlayTimeRef = useRef(0);
 
+  // Voice gender selection: expose exactly 2 clear options — Woman & Man
+  // Each picks the best natural/online voice available for that gender
+  const VOICE_OPTIONS = [{ label: '👩 Woman', gender: 'female' }, { label: '👨 Man', gender: 'male' }];
+
+  useEffect(() => {
+    if (!("speechSynthesis" in window)) return;
+
+    const pickBestVoice = (voices, gender) => {
+      const femaleNames = ['Zira', 'Jenny', 'Aria', 'Susan', 'Samantha', 'Victoria', 'Karen', 'Moira', 'Tessa', 'Female', 'Woman', 'Google UK English Female', 'Google US English'];
+      const maleNames   = ['Guy', 'David', 'Mark', 'James', 'Daniel', 'Alex', 'Fred', 'Google UK English Male', 'Male', 'Man'];
+      const keywords = gender === 'female' ? femaleNames : maleNames;
+
+      const en = voices.filter(v => v.lang.startsWith('en'));
+
+      // Priority 1: Online Natural + gender keyword
+      let match = en.find(v => v.name.includes('Online (Natural)') && keywords.some(k => v.name.includes(k)));
+      // Priority 2: Any Natural + gender keyword
+      if (!match) match = en.find(v => (v.name.includes('Natural') || v.name.includes('Google')) && keywords.some(k => v.name.includes(k)));
+      // Priority 3: any voice with gender keyword
+      if (!match) match = en.find(v => keywords.some(k => v.name.toLowerCase().includes(k.toLowerCase())));
+      // Priority 4: first en-US voice for female, second for male
+      if (!match) {
+        const us = en.filter(v => v.lang === 'en-US');
+        match = gender === 'female' ? us[0] : us[1] || us[0];
+      }
+      return match || (gender === 'female' ? en[0] : en[1] || en[0]);
+    };
+
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      if (!voices || voices.length === 0) return;
+      const female = pickBestVoice(voices, 'female');
+      const male   = pickBestVoice(voices, 'male');
+      setAvailableVoices([female, male].filter(Boolean));
+    };
+
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    return () => { if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = null; };
+  }, []);
+
+
+  // Speech Synthesis (AI Speaking out loud - Natural & Clear)
+  const speakText = useCallback((text) => {
+    if (!('speechSynthesis' in window)) {
+      console.warn('Speech synthesis not supported in this browser.');
+      return;
+    }
+
+    // Cancel any current speaking
+    window.speechSynthesis.cancel();
+
+    if (!text) return;
+
+    // Clean text for clear articulation
+    let cleanText = text
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/[*_#`~>|-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!cleanText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 0.9;  // Slightly slower pace for maximum clarity and articulation
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    // Select voice
+    const voices = window.speechSynthesis.getVoices();
+    let chosenVoice = availableVoices[selectedVoiceIndex];
+
+    if (!chosenVoice && voices.length > 0) {
+      chosenVoice = voices.find(
+        (v) => v.lang.startsWith('en') && (v.name.includes('Online (Natural)') || v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha'))
+      ) || voices.find((v) => v.lang.startsWith('en'));
+    }
+
+    if (chosenVoice) {
+      utterance.voice = chosenVoice;
+    }
+
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+
+    window.speechSynthesis.speak(utterance);
+  }, [availableVoices, selectedVoiceIndex]);
+
+  const stopSpeaking = useCallback(() => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+  }, []);
+
   const stopRecording = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // ignore
+      }
+      recognitionRef.current = null;
+    }
+
     if (processorRef.current) {
       processorRef.current.disconnect();
       processorRef.current = null;
@@ -78,62 +187,71 @@ export const useAudioStream = (interviewId) => {
   const clearTranscript = useCallback(() => setTranscript(''), []);
 
   const connect = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
-
-    const ws = new WebSocket(VOICE_WS_URL);
-    ws.binaryType = 'arraybuffer';
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setIsConnected(true);
-      setError(null);
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        setIsConnected(true);
       }
-    };
+      return;
+    }
 
-    ws.onmessage = async (event) => {
-      if (typeof event.data === 'string') {
-        try {
-          const msg = JSON.parse(event.data);
+    try {
+      const ws = new WebSocket(VOICE_WS_URL);
+      ws.binaryType = 'arraybuffer';
+      wsRef.current = ws;
 
-          if (msg.type === 'transcript') {
-            setTranscript((prev) => `${prev}${prev ? ' ' : ''}${msg.text || ''}`.trim());
-          } else if (msg.type === 'ready') {
-            setIsConnected(true);
-          } else if (msg.type === 'error') {
-            setError(msg.message || 'Voice connection error');
-          } else if (msg.type === 'connection_closed') {
-            setIsConnected(false);
-          } else if (msg.type === 'terminated') {
-            stopRecording();
-            setIsConnected(false);
-          }
-        } catch (parseError) {
-          console.error('[Voice WS] Failed to parse message:', parseError);
-        }
-      } else if (event.data instanceof ArrayBuffer) {
-        await playAudioChunk(event.data);
-      }
-    };
-
-    ws.onclose = () => {
-      setIsConnected(false);
-      stopRecording();
-      if (!reconnectTimerRef.current) {
-        reconnectTimerRef.current = setTimeout(() => {
+      ws.onopen = () => {
+        setIsConnected(true);
+        setError(null);
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
           reconnectTimerRef.current = null;
-          connect();
-        }, 2000);
-      }
-    };
+        }
+      };
 
-    ws.onerror = (event) => {
-      console.error('[Voice WS] Error:', event);
-      setError('WebSocket connection error. Retrying...');
-    };
-  }, [playAudioChunk, stopRecording]);
+      ws.onmessage = async (event) => {
+        if (typeof event.data === 'string') {
+          try {
+            const msg = JSON.parse(event.data);
+
+            if (msg.type === 'transcript') {
+              setTranscript((prev) => `${prev}${prev ? ' ' : ''}${msg.text || ''}`.trim());
+              if (msg.text) {
+                speakText(msg.text);
+              }
+            } else if (msg.type === 'ready' || msg.type === 'session_initialized') {
+              setIsConnected(true);
+            } else if (msg.type === 'error') {
+              console.warn('[Voice WS] Message info:', msg.message);
+            } else if (msg.type === 'terminated') {
+              stopRecording();
+              stopSpeaking();
+            }
+          } catch (parseError) {
+            console.error('[Voice WS] Failed to parse message:', parseError);
+          }
+        } else if (event.data instanceof ArrayBuffer) {
+          await playAudioChunk(event.data);
+        }
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        stopRecording();
+        if (!reconnectTimerRef.current) {
+          reconnectTimerRef.current = setTimeout(() => {
+            reconnectTimerRef.current = null;
+            connect();
+          }, 3000);
+        }
+      };
+
+      ws.onerror = (event) => {
+        console.error('[Voice WS] Error:', event);
+      };
+    } catch (err) {
+      console.error('[Voice WS] Connection exception:', err);
+    }
+  }, [playAudioChunk, stopRecording, stopSpeaking, speakText]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -142,6 +260,7 @@ export const useAudioStream = (interviewId) => {
     }
 
     stopRecording();
+    stopSpeaking();
 
     if (wsRef.current) {
       wsRef.current.close();
@@ -149,7 +268,7 @@ export const useAudioStream = (interviewId) => {
     }
 
     setIsConnected(false);
-  }, [stopRecording]);
+  }, [stopRecording, stopSpeaking]);
 
   const initSession = useCallback((role, question) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -185,6 +304,61 @@ export const useAudioStream = (interviewId) => {
   };
 
   const startRecording = useCallback(async () => {
+    setError(null);
+    stopSpeaking();
+    setTranscript('');
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        let accumulatedTranscript = '';
+
+        recognition.onresult = (event) => {
+          let currentSessionText = '';
+          for (let i = event.resultIndex; i < event.results.length; i += 1) {
+            const transcriptChunk = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              accumulatedTranscript += `${transcriptChunk} `;
+            } else {
+              currentSessionText += transcriptChunk;
+            }
+          }
+          const fullText = `${accumulatedTranscript}${currentSessionText}`.trim();
+          setTranscript(fullText);
+        };
+
+        recognition.onerror = (event) => {
+          console.warn('[SpeechRecognition] Error:', event.error);
+          if (event.error === 'not-allowed') {
+            setError('Microphone permission denied. Please allow mic access in your browser settings.');
+          }
+        };
+
+        recognition.onend = () => {
+          if (recognitionRef.current) {
+            try {
+              recognition.start();
+            } catch (e) {
+              // ignore
+            }
+          }
+        };
+
+        recognition.start();
+        recognitionRef.current = recognition;
+        setIsRecording(true);
+        return;
+      } catch (err) {
+        console.warn('[SpeechRecognition] Initialization failed, falling back to WebAudio stream:', err);
+      }
+    }
+
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setError('Microphone access is not supported in this browser.');
       return;
@@ -231,7 +405,7 @@ export const useAudioStream = (interviewId) => {
       console.error('[Voice WS] Microphone permission error:', error);
       setError('Mic permission was denied or the device is unavailable.');
     }
-  }, []);
+  }, [stopSpeaking]);
 
   useEffect(() => {
     return () => {
@@ -242,14 +416,20 @@ export const useAudioStream = (interviewId) => {
   return {
     isConnected,
     isRecording,
+    isSpeaking,
     transcript,
     error,
+    availableVoices,
+    selectedVoiceIndex,
+    setSelectedVoiceIndex,
     connect,
     disconnect,
     initSession,
     updateContext,
     startRecording,
     stopRecording,
+    speakText,
+    stopSpeaking,
     clearTranscript,
   };
 };

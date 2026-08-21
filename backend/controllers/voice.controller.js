@@ -30,13 +30,15 @@ const setupVoiceSockets = (server) => {
     let geminiClient = null;
     let currentInterviewId = null;
     let activeQuestion = null;
-    let reconnectTimer = null;
 
     const sendJson = (payload) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(payload));
       }
     };
+
+    // Notify client immediately that Voice WS connection is active & ready
+    sendJson({ type: 'ready', mode: 'connected' });
 
     const safeCloseSession = () => {
       if (geminiClient) {
@@ -54,7 +56,7 @@ const setupVoiceSockets = (server) => {
 
       geminiClient.on('ready', () => {
         logger.info('[VoiceController] Gemini Live ready');
-        sendJson({ type: 'ready' });
+        sendJson({ type: 'ready', mode: 'live' });
       });
 
       geminiClient.on('content', (text) => {
@@ -70,12 +72,12 @@ const setupVoiceSockets = (server) => {
 
       geminiClient.on('error', (error) => {
         logger.error('[VoiceController] Gemini Live error:', error.message || error);
-        sendJson({ type: 'error', message: error.message || 'Gemini Live error' });
+        sendJson({ type: 'ready', mode: 'fallback' });
       });
 
       geminiClient.on('closed', () => {
         logger.warn('[VoiceController] Gemini Live connection closed');
-        sendJson({ type: 'connection_closed' });
+        sendJson({ type: 'ready', mode: 'fallback' });
       });
     };
 
@@ -92,7 +94,7 @@ const setupVoiceSockets = (server) => {
               geminiClient = await createGeminiLiveClient();
               bindGeminiEvents();
 
-              if (activeQuestion) {
+              if (activeQuestion && geminiClient) {
                 const prompt = buildInterviewPrompt({
                   role: message.role,
                   question: activeQuestion,
@@ -102,12 +104,12 @@ const setupVoiceSockets = (server) => {
                 });
                 await geminiClient.sendSystemInstruction(prompt);
               }
-
-              sendJson({ type: 'session_initialized', interviewId: currentInterviewId });
             } catch (error) {
-              logger.error('[VoiceController] Failed to initialize Gemini Live:', error.message);
-              sendJson({ type: 'error', message: 'Failed to initialize Gemini Live. Please try again.' });
+              logger.warn('[VoiceController] Gemini Live unavailable, operating in standard Web Speech mode:', error.message);
             }
+
+            sendJson({ type: 'session_initialized', interviewId: currentInterviewId });
+            sendJson({ type: 'ready', mode: 'connected' });
           }
 
           if (message.type === 'update_context') {
@@ -121,8 +123,8 @@ const setupVoiceSockets = (server) => {
                 difficulty: message.difficulty,
               });
               await geminiClient.sendSystemInstruction(prompt);
-              sendJson({ type: 'context_updated' });
             }
+            sendJson({ type: 'context_updated' });
           }
 
           if (message.type === 'client_content') {
@@ -141,21 +143,17 @@ const setupVoiceSockets = (server) => {
         }
       } catch (error) {
         logger.error('[VoiceController] WS message handling error:', error.message);
-        sendJson({ type: 'error', message: 'Voice session error. Please reconnect.' });
+        sendJson({ type: 'ready', mode: 'connected' });
       }
     });
 
     ws.on('close', () => {
       logger.info('[VoiceController] Client disconnected from Voice WS');
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-      }
       safeCloseSession();
     });
 
     ws.on('error', (error) => {
       logger.error('[VoiceController] Voice socket error:', error.message || error);
-      sendJson({ type: 'error', message: 'Voice connection failed.' });
       safeCloseSession();
     });
   });

@@ -13,4 +13,8 @@ router.get('/:id', chatController.getChatById);
 router.post('/:id/messages', chatController.sendMessage);
 router.delete('/:id', chatController.deleteChat);
 
+// RAG document routes
+router.post('/:id/documents', chatController.upload.single('file'), chatController.uploadDocument);
+router.delete('/:id/documents/:docId', chatController.deleteDocument);
+
 module.exports = router;

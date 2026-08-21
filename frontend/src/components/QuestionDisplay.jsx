@@ -70,10 +70,6 @@ const QuestionDisplay = ({ question, currentNumber, totalQuestions, onAnswer, on
           </div>
         )}
 
-        {/* Estimated Time */}
-        <div className="estimated-time">
-          <span>⏱️ Estimated answer time: {Math.ceil(question.estimatedAnswerSeconds / 60)} minutes</span>
-        </div>
       </div>
 
       {/* Answer Input */}

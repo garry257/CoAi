@@ -20,20 +20,34 @@ const VoiceInterviewPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [manualAnswerText, setManualAnswerText] = useState('');
 
   const {
     isConnected,
     isRecording,
+    isSpeaking,
     transcript,
     error: wsError,
+    availableVoices,
+    selectedVoiceIndex,
+    setSelectedVoiceIndex,
     connect,
     disconnect,
     initSession,
     updateContext,
     startRecording,
     stopRecording,
+    speakText,
+    stopSpeaking,
     clearTranscript,
   } = useAudioStream(id);
+
+  // Sync transcript from speech recognition into editable textarea state
+  useEffect(() => {
+    if (transcript) {
+      setManualAnswerText(transcript);
+    }
+  }, [transcript]);
 
   // Fetch current question on load
   useEffect(() => {
@@ -82,18 +96,36 @@ const VoiceInterviewPage = () => {
     }
   }, [isConnected, interview, currentQuestion, initSession]);
 
+  // Auto-read question out loud when question loads
+  useEffect(() => {
+    if (currentQuestion && currentQuestion.question) {
+      const timer = setTimeout(() => {
+        speakText(currentQuestion.question);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [currentQuestion, speakText]);
+
   const handleTimeExpired = useCallback(async () => {
     if (interview && interview.status === 'in_progress') {
       await handleCompleteInterview();
     }
   }, [interview]);
 
+  const handleClear = () => {
+    clearTranscript();
+    setManualAnswerText('');
+  };
+
   const handleNextQuestion = async () => {
     if (!currentQuestion) return;
 
+    stopSpeaking();
+    stopRecording();
     setSubmitting(true);
-    // Use the accumulated transcript as the answer text, fallback to something if empty
-    const answerText = transcript.trim() || "(Candidate answered via voice, no transcript captured)";
+    
+    // Use accumulated transcript or manual text as answer text
+    const answerText = manualAnswerText.trim() || transcript.trim() || "(Candidate answered verbally)";
     
     try {
       const res = await submitAnswer(
@@ -111,7 +143,6 @@ const VoiceInterviewPage = () => {
       if (res.data.isInterviewComplete) {
         navigate(`/interview/${id}/results`, { replace: true });
       } else if (res.data.nextQuestionNumber) {
-        // Update local interview state
         setInterview(prev => ({
           ...prev,
           questionsAnswered: res.data.totalAnswered,
@@ -121,7 +152,7 @@ const VoiceInterviewPage = () => {
         const nextRes = await getCurrentQuestion(id);
         if (nextRes.success) {
           setCurrentQuestion(nextRes.data.question);
-          clearTranscript();
+          handleClear();
           updateContext(nextRes.data.question);
         } else {
           setError('Failed to load next question');
@@ -135,6 +166,8 @@ const VoiceInterviewPage = () => {
   };
 
   const handleCompleteInterview = async () => {
+    stopSpeaking();
+    stopRecording();
     try {
       const res = await completeInterview(id);
       if (res.success) {
@@ -235,69 +268,212 @@ const VoiceInterviewPage = () => {
 
         {/* Question & Voice Interface */}
         <div className="question-display" style={{ marginTop: '20px' }}>
-          <div className="question-header">
+          <div className="question-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3>Question {interview.currentQuestionIndex + 1} of {interview.totalQuestionsPlanned}</h3>
+            
+            {/* Read Question Button */}
+            <button
+              onClick={() => {
+                if (isSpeaking) {
+                  stopSpeaking();
+                } else if (currentQuestion?.question) {
+                  speakText(currentQuestion.question);
+                }
+              }}
+              className="btn btn-secondary"
+              style={{
+                padding: '6px 14px',
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                borderColor: isSpeaking ? '#6366f1' : 'var(--border-color)',
+                backgroundColor: isSpeaking ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                color: isSpeaking ? '#6366f1' : 'inherit'
+              }}
+            >
+              {isSpeaking ? '🔊 AI Speaking...' : '🔊 Read Question Out Loud'}
+            </button>
           </div>
-          <p className="question-text">{currentQuestion?.question}</p>
           
-          <div className="voice-interface" style={{ marginTop: '40px', padding: '20px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', position: 'relative', overflow: 'hidden' }}>
+          <p className="question-text" style={{ fontSize: '1.25rem', lineHeight: '1.6', margin: '20px 0' }}>
+            {currentQuestion?.question}
+          </p>
+          
+          <div className="voice-interface" style={{ marginTop: '30px', padding: '24px', backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', position: 'relative', overflow: 'hidden' }}>
              
-             {/* Work in Progress Banner */}
+             {/* Header Banner */}
              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                backgroundColor: '#ff9800',
+                backgroundColor: '#6366f1',
                 color: 'white',
-                padding: '8px',
+                padding: '10px 16px',
+                borderRadius: '8px',
                 textAlign: 'center',
-                fontWeight: 'bold',
-                fontSize: '0.9rem',
-                letterSpacing: '1px',
-                zIndex: 10
+                fontWeight: '600',
+                fontSize: '0.95rem',
+                letterSpacing: '0.5px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justify: 'center',
+                gap: '8px'
              }}>
-                🚧 WORK IN PROGRESS - VOICE MODULE IS UNDER DEVELOPMENT 🚧
+                <span>🎙️</span> Voice AI Interview Session Active
              </div>
 
-             <h4 style={{ marginBottom: '20px', marginTop: '30px' }}>Voice Controls</h4>
+             <h4 style={{ marginBottom: '16px', fontSize: '1.1rem' }}>Voice Controls</h4>
              
-             <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
+             <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
                 {!isRecording ? (
-                   <button onClick={startRecording} className="btn btn-primary" disabled={!isConnected}>
-                      Start Speaking
+                   <button 
+                    onClick={startRecording} 
+                    className="btn btn-primary" 
+                    disabled={!isConnected}
+                    style={{
+                      padding: '12px 24px',
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)'
+                    }}
+                   >
+                      🎤 Start Speaking
                    </button>
                 ) : (
-                   <button onClick={stopRecording} className="btn btn-secondary" style={{ backgroundColor: '#dc3545', color: 'white' }}>
-                      Stop Speaking
+                   <button 
+                    onClick={stopRecording} 
+                    className="btn btn-secondary" 
+                    style={{ 
+                      backgroundColor: '#dc3545', 
+                      color: 'white',
+                      padding: '12px 24px',
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      animation: 'pulse 1.5s infinite'
+                    }}
+                   >
+                      ⏹️ Stop Speaking
                    </button>
+                )}
+
+                {isSpeaking && (
+                  <button
+                    onClick={stopSpeaking}
+                    className="btn btn-secondary"
+                    style={{ padding: '12px 20px', fontSize: '0.95rem' }}
+                  >
+                    🔇 Mute AI Voice
+                  </button>
+                )}
+
+                {availableVoices && availableVoices.length > 0 && (
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '600' }}>AI Voice:</label>
+                    <select
+                      value={selectedVoiceIndex}
+                      onChange={(e) => {
+                        const idx = Number(e.target.value);
+                        setSelectedVoiceIndex(idx);
+                        if (currentQuestion?.question) {
+                          speakText(currentQuestion.question);
+                        }
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#ffffff',
+                        color: '#1e293b',
+                        fontSize: '0.85rem',
+                        fontWeight: '600',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {availableVoices.map((v, i) => (
+                        <option key={i} value={i}>
+                          {v.name.replace(/Microsoft |Google /g, '')} ({v.lang})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
              </div>
 
-             <div className="status-indicators" style={{ marginBottom: '20px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                Connection Status: <span style={{ color: isConnected ? '#28a745' : '#dc3545' }}>{isConnected ? 'Connected' : 'Connecting...'}</span>
+             <div className="status-indicators" style={{ marginBottom: '20px', fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', gap: '20px', alignItems: 'center' }}>
+                <div>
+                  Connection Status: <span style={{ color: isConnected ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>{isConnected ? '✓ Connected' : 'Connecting...'}</span>
+                </div>
+                {isSpeaking && (
+                  <div style={{ color: '#6366f1', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ animation: 'blink 1s infinite' }}>🔊</span> AI Speaking question...
+                  </div>
+                )}
+                {isRecording && (
+                  <div style={{ color: '#dc3545', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ animation: 'blink 1s infinite' }}>🔴</span> Listening to your voice...
+                  </div>
+                )}
                 {wsError && <p style={{ color: '#dc3545', marginTop: '10px' }}>{wsError}</p>}
              </div>
 
              <div className="transcript-box" style={{ 
-                minHeight: '150px', 
-                backgroundColor: 'var(--bg-primary)', 
-                padding: '15px', 
-                borderRadius: '8px',
-                border: '1px solid var(--border-color)',
-                marginBottom: '20px'
+                backgroundColor: '#ffffff', 
+                padding: '18px', 
+                borderRadius: '10px',
+                border: isRecording ? '2px solid #6366f1' : '1px solid #cbd5e1',
+                marginBottom: '24px',
+                boxShadow: isRecording ? '0 0 12px rgba(99, 102, 241, 0.25)' : 'none',
+                transition: 'all 0.3s ease'
              }}>
-                <h5 style={{ marginBottom: '10px', color: 'var(--text-secondary)' }}>Live Transcript:</h5>
-                <p>{transcript || 'No speech detected yet...'}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h5 style={{ color: '#475569', margin: 0, fontWeight: '600', fontSize: '0.95rem' }}>
+                    Live Transcript & Answer Textbox:
+                  </h5>
+                  {manualAnswerText && (
+                    <button 
+                      onClick={handleClear} 
+                      style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#475569', fontSize: '0.8rem', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}
+                    >
+                      Clear Text
+                    </button>
+                  )}
+                </div>
+
+                <textarea
+                  value={manualAnswerText}
+                  onChange={(e) => setManualAnswerText(e.target.value)}
+                  placeholder={isRecording ? '🎤 Listening to your microphone... speak your response now!' : 'Click "Start Speaking" to speak your answer, or type your answer here directly...'}
+                  rows={5}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '1.05rem',
+                    lineHeight: '1.6',
+                    color: '#0f172a',
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                    fontWeight: '500'
+                  }}
+                />
              </div>
 
              <button 
                 onClick={handleNextQuestion} 
                 className="btn btn-primary"
                 disabled={submitting || isRecording}
-                style={{ width: '100%' }}
+                style={{ width: '100%', padding: '14px', fontSize: '1.05rem', fontWeight: 'bold' }}
              >
-                {submitting ? 'Saving...' : 'Submit & Next Question'}
+                {submitting ? 'Saving Answer...' : 'Submit Answer & Next Question →'}
              </button>
           </div>
         </div>

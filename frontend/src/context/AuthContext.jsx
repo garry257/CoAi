@@ -29,7 +29,6 @@ export const AuthProvider = ({ children }) => {
       setUser(res.data.data || res.data);
     } catch (err) {
       console.error('Failed to fetch user:', err);
-      // Token might be invalid — clear it
       logout();
     } finally {
       setLoading(false);
@@ -54,6 +53,19 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
+  /**
+   * Guest join: no account needed — just a share code and optional display name.
+   * Returns a short-lived JWT; the user can only see the one shared chat.
+   */
+  const guestJoin = async (shareCode, displayName) => {
+    const res = await axios.post(`${AUTH_API}/guest-join`, { shareCode, displayName });
+    const { token: newToken, username: uname } = res.data;
+    localStorage.setItem('token', newToken);
+    localStorage.setItem('username', uname);
+    setToken(newToken);
+    return res.data;
+  };
+
   const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
@@ -61,16 +73,23 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   }, []);
 
+  // Derived guest flags from user profile (set by backend in JWT/getMe)
+  const isGuest = user?.isGuest === true || user?.role === 'guest';
+  const guestChatId = user?.guestChatId || null;
+
   const value = {
     user,
     token,
     loading,
     isAuthenticated: !!token,
+    isGuest,
+    guestChatId,
     login,
     register,
+    guestJoin,
     logout,
     fetchUser,
-    setToken, // exposed so external auth flows can push a token into context
+    setToken,
   };
 
   return (

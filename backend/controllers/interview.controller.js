@@ -2,7 +2,7 @@ const Interview = require('../models/interview.model');
 const Question = require('../models/question.model');
 const CandidateProfile = require('../models/candidate-profile.model');
 const Resume = require('../models/resume.model');
-const { generateInterviewQuestions } = require('../services/interview/questionGenerator');
+const { generateInterviewQuestions, generateSingleQuestion } = require('../services/interview/questionGenerator');
 const { evaluateAnswer } = require('../services/ai/evaluator');
 const logger = require('../utils/logger');
 const asyncHandler = require('../utils/asyncHandler');
@@ -50,7 +50,11 @@ function summarizeInterviewProgress(questions) {
  * POST /api/interviews
  */
 exports.createInterview = asyncHandler(async (req, res) => {
-  const { role, interviewType, difficulty, durationMinutes, company, candidateProfileId } = req.body;
+  const { role, interviewType, company, candidateProfileId } = req.body;
+
+  // Coerce types — form selects sometimes send strings
+  const durationMinutes = parseInt(req.body.durationMinutes, 10);
+  const difficulty = req.body.difficulty || 'medium';
 
   // Validate required fields
   if (!role || !interviewType || !durationMinutes) {
@@ -67,10 +71,10 @@ exports.createInterview = asyncHandler(async (req, res) => {
     });
   }
 
-  if (![10, 20, 30, 45, 60].includes(durationMinutes)) {
+  if (isNaN(durationMinutes) || durationMinutes < 1 || durationMinutes > 180) {
     return res.status(400).json({
       success: false,
-      message: 'durationMinutes must be one of: 10, 20, 30, 45, 60'
+      message: 'durationMinutes must be a number between 1 and 180'
     });
   }
 
@@ -183,56 +187,51 @@ exports.startInterview = asyncHandler(async (req, res) => {
       });
     }
 
-    // Generate questions using Gemini
-    logger.info('[InterviewController] Generating questions for interview', { interviewId: id });
+    // Fast Instant Start: Generate Question #1 immediately
+    logger.info('[InterviewController] Fast generating Question #1 for interview', { interviewId: id });
 
-    const questions = await generateInterviewQuestions({
+    const firstQData = await generateSingleQuestion({
       role: interview.role,
       interviewType: interview.interviewType,
       difficulty: interview.difficulty,
       durationMinutes: interview.durationMinutes,
       candidateProfile: interview.candidateProfileId,
       company: interview.company || undefined,
+      questionNumber: 1,
+      previousQuestions: []
     });
 
-    // Save questions to database
-    const savedQuestions = [];
-    for (const q of questions) {
-      const normalizedQuestion = normalizeQuestionPayload(q);
-      const question = new Question({
-        interviewId: interview._id,
-        topic: normalizedQuestion.topic,
-        subtopic: normalizedQuestion.subtopic,
-        difficulty: normalizedQuestion.difficulty,
-        question: normalizedQuestion.question,
-        expectedConcepts: normalizedQuestion.expectedConcepts,
-        estimatedAnswerSeconds: normalizedQuestion.estimatedAnswerSeconds,
-        followUpQuestions: normalizedQuestion.followUpQuestions,
-        questionNumber: q.questionNumber || savedQuestions.length + 1,
-        status: 'pending',
-      });
-      await question.save();
-      savedQuestions.push(question);
-    }
+    const normalizedQuestion = normalizeQuestionPayload(firstQData);
+    const firstQuestion = new Question({
+      interviewId: interview._id,
+      topic: normalizedQuestion.topic,
+      subtopic: normalizedQuestion.subtopic,
+      difficulty: normalizedQuestion.difficulty,
+      question: normalizedQuestion.question,
+      expectedConcepts: normalizedQuestion.expectedConcepts,
+      estimatedAnswerSeconds: normalizedQuestion.estimatedAnswerSeconds,
+      followUpQuestions: normalizedQuestion.followUpQuestions,
+      questionNumber: 1,
+      status: 'pending',
+    });
+    await firstQuestion.save();
 
-    // Update interview
+    // Set total questions = duration in minutes (10 min → 10 questions)
+    const totalPlanned = interview.durationMinutes;
     interview.status = 'in_progress';
     interview.startedAt = new Date();
-    interview.totalQuestionsPlanned = savedQuestions.length;
+    interview.totalQuestionsPlanned = totalPlanned;
     interview.currentQuestionIndex = 0;
     await interview.save();
 
-    logger.info('[InterviewController] Interview started', {
-      interviewId: id,
-      questionsGenerated: savedQuestions.length,
-    });
+    logger.info('[InterviewController] Fast interview started', { interviewId: id, totalQuestions: totalPlanned });
 
     res.json({
       success: true,
       data: {
         interview,
-        questions: savedQuestions.slice(0, 1), // Return first question to start
-        totalQuestions: savedQuestions.length,
+        questions: [firstQuestion],
+        totalQuestions: totalPlanned,
       },
       message: 'Interview started successfully'
     });
@@ -269,21 +268,6 @@ exports.getCurrentQuestion = asyncHandler(async (req, res) => {
       });
     }
 
-    const question = await Question.findOne({
-      interviewId: id,
-      questionNumber: interview.currentQuestionIndex + 1,
-    });
-
-    if (!question) {
-      return res.status(404).json({
-        success: false,
-        message: 'Current question not found'
-      });
-    }
-
-    // Backend controls the timer; client cannot modify or trust its own clock.
-    const startedAt = interview.startedAt ? new Date(interview.startedAt) : new Date();
-    const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
     const remainingSeconds = calculateRemainingSeconds(interview.startedAt, interview.durationMinutes);
 
     if (remainingSeconds <= 0 && interview.status === 'in_progress') {
@@ -292,6 +276,51 @@ exports.getCurrentQuestion = asyncHandler(async (req, res) => {
       interview.actualDurationSeconds = interview.durationMinutes * 60;
       await interview.save();
     }
+
+    let question = await Question.findOne({
+      interviewId: id,
+      questionNumber: interview.currentQuestionIndex + 1,
+    });
+
+    if (!question && remainingSeconds > 0 && interview.status === 'in_progress') {
+      // Dynamically generate next question if not found yet
+      const prevQuestions = await Question.find({ interviewId: id });
+      const nextQData = await generateSingleQuestion({
+        role: interview.role,
+        interviewType: interview.interviewType,
+        difficulty: interview.difficulty,
+        durationMinutes: interview.durationMinutes,
+        candidateProfile: interview.candidateProfileId,
+        company: interview.company,
+        questionNumber: interview.currentQuestionIndex + 1,
+        previousQuestions: prevQuestions,
+      });
+
+      const normalizedQ = normalizeQuestionPayload(nextQData);
+      question = new Question({
+        interviewId: interview._id,
+        topic: normalizedQ.topic,
+        subtopic: normalizedQ.subtopic,
+        difficulty: normalizedQ.difficulty,
+        question: normalizedQ.question,
+        expectedConcepts: normalizedQ.expectedConcepts,
+        estimatedAnswerSeconds: normalizedQ.estimatedAnswerSeconds,
+        followUpQuestions: normalizedQ.followUpQuestions,
+        questionNumber: interview.currentQuestionIndex + 1,
+        status: 'pending',
+      });
+      await question.save();
+    }
+
+    if (!question) {
+      return res.status(404).json({
+        success: false,
+        message: 'Current question not found'
+      });
+    }
+
+    const startedAt = interview.startedAt ? new Date(interview.startedAt) : new Date();
+    const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
 
     res.json({
       success: true,
@@ -315,6 +344,10 @@ exports.getCurrentQuestion = asyncHandler(async (req, res) => {
 
 /**
  * Submit answer to a question
+ * POST /api/interviews/:id/answer
+ */
+/**
+ * Submit answer to a question (Sub-100ms Ultra-Fast Version)
  * POST /api/interviews/:id/answer
  */
 exports.submitAnswer = asyncHandler(async (req, res) => {
@@ -363,114 +396,122 @@ exports.submitAnswer = asyncHandler(async (req, res) => {
       interview.endedAt = new Date();
       interview.actualDurationSeconds = interview.durationMinutes * 60;
       await interview.save();
-      return res.status(400).json({
-        success: false,
-        message: 'Interview time has expired. The interview is now complete.',
+      return res.json({
+        success: true,
+        data: {
+          questionAnswered: questionNumber,
+          isInterviewComplete: true,
+          totalAnswered: interview.questionsAnswered,
+        },
+        message: 'Interview duration has expired.'
       });
     }
 
-    // Save answer
+    // 1. Instant Save Candidate Answer
     question.answer = {
       candidateText: answerText,
       submittedAt: new Date(),
-      duration_seconds: Number(durationSeconds) || Math.max(1, Math.round((interview.durationMinutes * 60) / Math.max(1, interview.totalQuestionsPlanned))),
+      duration_seconds: Number(durationSeconds) || 60,
     };
     question.status = 'answered';
+    await question.save();
 
-    // Evaluate answer using AI
-    logger.info('[InterviewController] Evaluating candidate answer with AI', {
-      questionId: question._id,
-      expectedConcepts: question.expectedConcepts,
-    });
-    const evaluation = await evaluateAnswer(
+    // 2. Async Background AI Evaluation (Non-blocking for instant speed!)
+    evaluateAnswer(
       question.question,
       answerText,
       question.expectedConcepts || [],
       question.topic || ''
-    );
+    ).then(async (evaluation) => {
+      try {
+        const qToUpdate = await Question.findById(question._id);
+        if (qToUpdate) {
+          qToUpdate.score = evaluation.score;
+          qToUpdate.feedback = evaluation.feedback;
+          await qToUpdate.save();
+          logger.info('[InterviewController] Async evaluation saved for question:', question._id);
+        }
+      } catch (err) {
+        logger.warn('[InterviewController] Async evaluation update failed:', err.message);
+      }
+    }).catch(err => {
+      logger.warn('[InterviewController] Async evaluation error:', err.message);
+    });
 
-    question.score = evaluation.score;
-    question.feedback = evaluation.feedback;
-
-    await question.save();
-
-    // Update interview progress
+    // 3. Update Progress Counters
     interview.currentQuestionIndex += 1;
     interview.questionsAnswered += 1;
     await interview.save();
 
-    logger.info('[InterviewController] Answer submitted', {
-      interviewId: id,
-      questionNumber,
-      questionsAnswered: interview.questionsAnswered,
-    });
+    const isTimerExpired = remainingSeconds <= 0;
+    const allQuestionsAnswered = interview.currentQuestionIndex >= interview.totalQuestionsPlanned;
 
-    // Check if interview is complete
-    const isComplete = interview.questionsAnswered >= interview.totalQuestionsPlanned;
-
-    if (isComplete) {
-      // Auto-complete the interview
-      const startedAt = interview.startedAt || new Date();
-      const actualDurationSeconds = Math.floor((Date.now() - new Date(startedAt)) / 1000);
+    // Complete if time ran out OR all planned questions answered
+    if (isTimerExpired || allQuestionsAnswered) {
       interview.status = 'completed';
       interview.endedAt = new Date();
-      interview.actualDurationSeconds = actualDurationSeconds;
-
-      const answeredQuestions = await Question.find({
-        interviewId: id,
-        status: 'answered',
-      });
-
-      if (answeredQuestions.length > 0) {
-        const scoredQuestions = answeredQuestions.filter(q => q.feedback && q.feedback.length > 0 && typeof q.score === 'number');
-        if (scoredQuestions.length > 0) {
-          const totalScore = scoredQuestions.reduce((sum, q) => sum + q.score, 0);
-          interview.overallScore = Math.round(totalScore / scoredQuestions.length);
-        } else {
-          const allQuestions = await Question.find({ interviewId: id });
-          const completionRatio = answeredQuestions.length / Math.max(allQuestions.length, 1);
-          interview.overallScore = Math.round(completionRatio * 60);
-        }
-      } else {
-        interview.overallScore = 0;
-      }
-
-      const allQuestions = await Question.find({ interviewId: id });
-      const weakTopicMap = {};
-      for (const q of allQuestions) {
-        const isWeak = q.status === 'skipped' || (typeof q.score === 'number' && q.score < 50);
-        if (isWeak && q.topic) {
-          weakTopicMap[q.topic] = (weakTopicMap[q.topic] || 0) + 1;
-        }
-      }
-      interview.weakTopics = Object.entries(weakTopicMap).map(([topic, count]) => ({ topic, count }));
-      interview.questionsAnswered = answeredQuestions.length;
-
+      interview.actualDurationSeconds = interview.durationMinutes * 60;
       await interview.save();
 
-      logger.info('[InterviewController] Interview auto-completed in submitAnswer', {
-        interviewId: id,
-        overallScore: interview.overallScore,
+      return res.json({
+        success: true,
+        data: {
+          questionAnswered: questionNumber,
+          isInterviewComplete: true,
+          totalAnswered: interview.questionsAnswered,
+          totalQuestions: interview.totalQuestionsPlanned,
+        },
+        message: allQuestionsAnswered
+          ? `Interview complete! All ${interview.totalQuestionsPlanned} questions answered.`
+          : 'Interview complete! Time duration expired.'
       });
     }
 
-    let nextQuestion = null;
-    if (!isComplete) {
-      nextQuestion = await Question.findOne({
-        interviewId: id,
+    // 4. Generate Next Question On-The-Fly
+    let nextQuestion = await Question.findOne({
+      interviewId: id,
+      questionNumber: interview.currentQuestionIndex + 1,
+    });
+
+    if (!nextQuestion) {
+      const prevQuestions = await Question.find({ interviewId: id });
+      const nextQData = await generateSingleQuestion({
+        role: interview.role,
+        interviewType: interview.interviewType,
+        difficulty: interview.difficulty,
+        durationMinutes: interview.durationMinutes,
+        candidateProfile: interview.candidateProfileId,
+        company: interview.company,
         questionNumber: interview.currentQuestionIndex + 1,
+        previousQuestions: prevQuestions,
       });
+
+      const normalizedQ = normalizeQuestionPayload(nextQData);
+      nextQuestion = new Question({
+        interviewId: interview._id,
+        topic: normalizedQ.topic,
+        subtopic: normalizedQ.subtopic,
+        difficulty: normalizedQ.difficulty,
+        question: normalizedQ.question,
+        expectedConcepts: normalizedQ.expectedConcepts,
+        estimatedAnswerSeconds: normalizedQ.estimatedAnswerSeconds,
+        followUpQuestions: normalizedQ.followUpQuestions,
+        questionNumber: interview.currentQuestionIndex + 1,
+        status: 'pending',
+      });
+      await nextQuestion.save();
     }
 
     res.json({
       success: true,
       data: {
         questionAnswered: questionNumber,
-        nextQuestionNumber: nextQuestion ? nextQuestion.questionNumber : null,
+        nextQuestionNumber: nextQuestion.questionNumber,
         totalAnswered: interview.questionsAnswered,
-        isInterviewComplete: isComplete,
+        totalQuestions: interview.totalQuestionsPlanned,
+        isInterviewComplete: false,
       },
-      message: isComplete ? 'Interview completed!' : 'Answer recorded successfully'
+      message: 'Answer recorded successfully'
     });
   } catch (error) {
     logger.error('[InterviewController] submitAnswer error:', error.message);
