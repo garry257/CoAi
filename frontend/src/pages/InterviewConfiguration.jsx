@@ -65,6 +65,10 @@ const InterviewConfiguration = () => {
       });
 
       if (!interviewRes.success) {
+        if (interviewRes.message?.toLowerCase().includes('upload your resume')) {
+          navigate('/resume-upload', { state: { from: '/interview-config' } });
+          return;
+        }
         setConfigError(interviewRes.message || 'Failed to create interview');
         setConfigLoading(false);
         return;

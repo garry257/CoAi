@@ -116,6 +116,10 @@ const Dashboard = () => {
       });
 
       if (!interviewRes.success) {
+        if (interviewRes.message?.toLowerCase().includes('upload your resume')) {
+          navigate('/resume-upload', { state: { from: '/dashboard' } });
+          return;
+        }
         setConfigError(interviewRes.message || 'Failed to create interview');
         setConfigLoading(false);
         return;

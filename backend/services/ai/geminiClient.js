@@ -1,37 +1,61 @@
-const { getGeminiClient, GEMINI_MODEL } = require('../../config/gemini');
-const Groq = require('groq-sdk');
+const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
+const { ChatGroq } = require('@langchain/groq');
 const env = require('../../config/env');
 const logger = require('../../utils/logger');
+const { GEMINI_MODEL } = require('../../config/gemini');
 
 /**
- * Thin wrapper around Gemini SDK with Groq fallback.
+ * LangChain-powered wrapper around Gemini with Groq fallback.
  * Provides a single, consistent API for generating content.
  */
 class GeminiService {
   constructor() {
-    this.client = null;
     this.model = GEMINI_MODEL;
-    this.groqClient = null;
   }
 
-  _getGroqClient() {
-    if (!this.groqClient && env.GROQ_API_KEY) {
-      this.groqClient = new Groq({ apiKey: env.GROQ_API_KEY });
-    }
-    return this.groqClient;
-  }
+  _getGoogleModel(options = {}) {
+    const modelName = options.model || this.model;
+    const temp = options.generationConfig?.temperature ?? 0.7;
+    const maxTokens = options.generationConfig?.maxOutputTokens ?? 2048;
 
-  /**
-   * Initialize the client lazily.
-   */
-  _ensureClient() {
-    if (!this.client) {
-      this.client = getGeminiClient();
-    }
-    if (!this.client) {
+    if (!env.GEMINI_API_KEY) {
       throw new Error('Gemini API is not configured. Set GEMINI_API_KEY in .env');
     }
-    return this.client;
+
+    return new ChatGoogleGenerativeAI({
+      apiKey: env.GEMINI_API_KEY,
+      model: modelName,
+      temperature: temp,
+      maxOutputTokens: maxTokens,
+    });
+  }
+
+  _getFallbackChain(options = {}) {
+    const primary = this._getGoogleModel(options);
+
+    if (env.GROQ_API_KEY) {
+      const temp = options.generationConfig?.temperature ?? 0.7;
+      const maxTokens = options.generationConfig?.maxOutputTokens ?? 2048;
+
+      const fallbackModels = [
+        'llama-3.3-70b-specdec',
+        'mixtral-8x7b-32768'
+      ];
+
+      const groqModelInstances = fallbackModels.map(
+        (m) =>
+          new ChatGroq({
+            apiKey: env.GROQ_API_KEY,
+            model: m,
+            temperature: temp,
+            maxTokens: maxTokens,
+          })
+      );
+
+      return primary.withFallbacks(groqModelInstances);
+    }
+
+    return primary;
   }
 
   /**
@@ -41,58 +65,14 @@ class GeminiService {
    * @returns {Promise<string>} - Generated text response
    */
   async generateText(prompt, options = {}) {
-    const model = options.model || this.model;
-
-    // If Groq client is configured, try Groq first or fallback instantly
-    const groqClient = this._getGroqClient();
-
-    // 1. Try Gemini
     try {
-      const client = this._ensureClient();
-      const response = await client.models.generateContent({
-        model,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        ...(options.generationConfig && { generationConfig: options.generationConfig }),
-      });
-
-      if (response && response.text) {
-        return response.text;
-      }
+      const chain = this._getFallbackChain(options);
+      const response = await chain.invoke(prompt);
+      return typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     } catch (error) {
-      logger.warn('[GeminiService] Gemini API unavailable/slow, using fast Groq engine:', error.message);
+      logger.error('[GeminiService] generateText failed:', error.message);
+      throw error;
     }
-
-    // 2. Ultra-Fast Groq Engine Fallback
-    if (groqClient) {
-      const groqModels = [
-        'openai/gpt-oss-20b',
-        'qwen/qwen3.6-27b',
-        'groq/compound',
-        'openai/gpt-oss-120b'
-      ];
-
-      for (const groqModel of groqModels) {
-        try {
-          const generationConfig = options.generationConfig || {};
-          const completion = await groqClient.chat.completions.create({
-            model: groqModel,
-            messages: [{ role: 'user', content: prompt }],
-            temperature: generationConfig.temperature ?? 0.7,
-            max_tokens: generationConfig.maxOutputTokens ?? 2048,
-          });
-
-          const text = completion.choices?.[0]?.message?.content || '';
-          if (text) {
-            logger.info(`[GeminiService] Fast Groq output delivered (${groqModel})`);
-            return text;
-          }
-        } catch (groqError) {
-          logger.warn(`[GeminiService] Groq model ${groqModel} error:`, groqError.message);
-        }
-      }
-    }
-
-    throw new Error('AI Generation unavailable. Please check API configuration.');
   }
 
   /**
@@ -103,25 +83,22 @@ class GeminiService {
    * @returns {Promise<string>} - Generated text response
    */
   async generateChat(history, newMessage, options = {}) {
-    const client = this._ensureClient();
-    const model = options.model || this.model;
-
-    const contents = [
-      ...history.map((msg) => ({
-        role: msg.role === 'model' ? 'model' : 'user',
-        parts: [{ text: msg.content }],
-      })),
-      { role: 'user', parts: [{ text: newMessage }] },
-    ];
-
     try {
-      const response = await client.models.generateContent({
-        model,
-        contents,
-        ...(options.generationConfig && { generationConfig: options.generationConfig }),
+      const messages = history.map((msg) => {
+        if (msg.role === 'model' || msg.role === 'ai') {
+          return ['ai', msg.content];
+        } else if (msg.role === 'system') {
+          return ['system', msg.content];
+        } else {
+          return ['human', msg.content];
+        }
       });
 
-      return response.text;
+      messages.push(['human', newMessage]);
+
+      const chain = this._getFallbackChain(options);
+      const response = await chain.invoke(messages);
+      return typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     } catch (error) {
       logger.error('[GeminiService] generateChat failed:', error.message);
       throw error;

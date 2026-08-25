@@ -1,8 +1,13 @@
-const { RecursiveCharacterTextSplitter } = require('@langchain/textsplitters');
-const { MemoryVectorStore } = require('@langchain/core/vectorstores');
-const { GoogleGenerativeAIEmbeddings } = require('@langchain/google-genai');
-const { EMBEDDING_MODEL } = require('../../config/gemini');
-const env = require('../../config/env');
+/**
+ * AI Software Engineer Portfolio Showcase:
+ * Custom first-principles RAG (Retrieval-Augmented Generation) implementation.
+ * 
+ * This file archives the original manual implementation of text chunking, 
+ * vocabulary indexing, keyword bag-of-words vector generation, and cosine similarity calculations.
+ * It demonstrates deep core knowledge of vector spaces without third-party libraries.
+ */
+
+const { getGeminiClient, EMBEDDING_MODEL } = require('../../config/gemini');
 const logger = require('../../utils/logger');
 
 const KNOWLEDGE_BASE = [
@@ -43,171 +48,108 @@ const KNOWLEDGE_BASE = [
   }
 ];
 
-function buildKnowledgeBase() {
-  return KNOWLEDGE_BASE.map((doc) => ({
-    ...doc,
-    content: String(doc.content || '').replace(/\s+/g, ' ').trim(),
-  }));
-}
+const normalizeText = (text = '') => String(text).replace(/\s+/g, ' ').trim();
 
-/**
- * Text splitter wrapper around LangChain's RecursiveCharacterTextSplitter.
- */
-function chunkText(text, chunkSize = 700, overlap = 120) {
-  const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize,
-    chunkOverlap: overlap,
+const tokenize = (text) => {
+  const normalized = normalizeText(text).toLowerCase();
+  return normalized.match(/[a-z0-9]+(?:\.[a-z0-9]+)?/g) || [];
+};
+
+const buildVocabulary = (documents = KNOWLEDGE_BASE) => {
+  const terms = new Set();
+  documents.forEach((doc) => {
+    tokenize(doc.content).forEach((term) => terms.add(term));
   });
-  const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+  return [...terms];
+};
+
+const buildKeywordVector = (text, vocabulary) => {
+  const counts = {};
+  const tokens = tokenize(text);
+
+  for (const token of tokens) {
+    counts[token] = (counts[token] || 0) + 1;
+  }
+
+  return vocabulary.map((term) => counts[term] || 0);
+};
+
+const cosineSimilarity = (a, b) => {
+  if (!a || !b || a.length !== b.length) return 0;
+
+  let dot = 0;
+  let magA = 0;
+  let magB = 0;
+
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
+  }
+
+  if (magA === 0 || magB === 0) return 0;
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+};
+
+function chunkText(text, chunkSize = 700, overlap = 120) {
+  const cleaned = normalizeText(text);
   if (!cleaned) return [];
-  return splitter.splitTextSync(cleaned);
-}
 
-/**
- * Generates an embedding via LangChain's GoogleGenerativeAIEmbeddings.
- */
-async function generateEmbedding(text) {
-  const content = String(text || '').replace(/\s+/g, ' ').trim();
-  if (!content) return [];
+  const chunks = [];
+  let start = 0;
 
-  try {
-    const embeddings = new GoogleGenerativeAIEmbeddings({
-      apiKey: env.GEMINI_API_KEY,
-      modelName: EMBEDDING_MODEL,
-    });
-    return await embeddings.embedQuery(content);
-  } catch (error) {
-    logger.warn('[RAG] LangChain embedding generation failed:', error.message);
-    return [];
-  }
-}
+  while (start < cleaned.length) {
+    let end = Math.min(start + chunkSize, cleaned.length);
 
-/**
- * Ingest document via text splitter.
- */
-async function ingestDocument(document) {
-  const doc = {
-    id: document.id || `doc-${Date.now()}`,
-    topic: document.topic || 'General',
-    content: String(document.content || '').replace(/\s+/g, ' ').trim(),
-  };
+    if (end < cleaned.length) {
+      const lastSpace = cleaned.lastIndexOf(' ', end);
+      if (lastSpace > start + chunkSize * 0.5) {
+        end = lastSpace;
+      }
+    }
 
-  if (!doc.content) {
-    throw new Error('Document content cannot be empty');
+    const chunk = cleaned.slice(start, end).trim();
+    if (chunk) {
+      chunks.push(chunk);
+    }
+
+    if (end >= cleaned.length) break;
+    start = Math.max(start + chunkSize - overlap, end);
   }
 
-  const chunks = chunkText(doc.content);
-  const vectorStore = await Promise.all(
-    chunks.map(async (chunk, index) => ({
+  return chunks;
+}
+
+function retrieveRelevantContext(query, documents = KNOWLEDGE_BASE, limit = 4) {
+  const vocab = buildVocabulary(documents);
+  if (vocab.length === 0) return [];
+
+  const queryVector = buildKeywordVector(normalizeText(query), vocab);
+
+  const scored = documents.flatMap((doc) => {
+    const chunks = chunkText(doc.content);
+    return chunks.map((chunk, index) => ({
+      id: `${doc.id}-${index}`,
       docId: doc.id,
       topic: doc.topic,
-      source: doc.id,
-      chunkIndex: index,
       content: chunk,
-      embedding: await generateEmbedding(chunk),
-    }))
-  );
-
-  return {
-    document: doc,
-    chunks,
-    vectorStore,
-  };
-}
-
-/**
- * Retrieve relevant context via MemoryVectorStore.
- */
-async function retrieveRelevantContext(query, documents = buildKnowledgeBase(), limit = 4) {
-  if (!documents || documents.length === 0) return [];
-
-  const textSplitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 700,
-    chunkOverlap: 120,
-  });
-
-  const embeddings = new GoogleGenerativeAIEmbeddings({
-    apiKey: env.GEMINI_API_KEY,
-    modelName: EMBEDDING_MODEL,
-  });
-
-  const docsToEmbed = [];
-  for (const doc of documents) {
-    const splitChunks = await textSplitter.splitText(doc.content);
-    splitChunks.forEach((chunk, index) => {
-      docsToEmbed.push({
-        pageContent: chunk,
-        metadata: {
-          id: `${doc.id}-${index}`,
-          docId: doc.id,
-          topic: doc.topic,
-        }
-      });
-    });
-  }
-
-  if (docsToEmbed.length === 0) return [];
-
-  try {
-    const vectorStore = await MemoryVectorStore.fromDocuments(
-      docsToEmbed,
-      embeddings
-    );
-
-    const searchResults = await vectorStore.similaritySearchWithScore(query, limit);
-
-    return searchResults.map(([doc, score]) => ({
-      id: doc.metadata.id,
-      docId: doc.metadata.docId,
-      topic: doc.metadata.topic,
-      content: doc.pageContent,
-      score: typeof score === 'number' ? Number((1 - score).toFixed(4)) : 1.0,
+      score: cosineSimilarity(queryVector, buildKeywordVector(chunk, vocab)),
     }));
-  } catch (error) {
-    logger.error('[RAG] LangChain retrieval failed, using fallback in-memory matching:', error.message);
-    const showcase = require('./customRagShowcase');
-    return showcase.retrieveRelevantContext(query, documents, limit);
-  }
-}
+  });
 
-function buildRetrievalQuery(candidateProfile = {}, interviewTopic, role, interviewType) {
-  const skills = Array.isArray(candidateProfile.skills) ? candidateProfile.skills : [];
-  const frameworks = Array.isArray(candidateProfile.frameworks) ? candidateProfile.frameworks : [];
-  const topics = Array.isArray(candidateProfile.suggestedInterviewTopics) ? candidateProfile.suggestedInterviewTopics : [];
-
-  const focusAreas = [
-    role,
-    interviewType,
-    interviewTopic,
-    ...skills,
-    ...frameworks,
-    ...topics,
-  ].filter(Boolean);
-
-  return `Use the following candidate background and topic to retrieve relevant knowledge: ${focusAreas.join(', ')}.`;
-}
-
-async function buildRAGContext({ candidateProfile, interviewTopic, role, interviewType, limit = 5 }) {
-  const documents = buildKnowledgeBase();
-  const query = buildRetrievalQuery(candidateProfile, interviewTopic, role, interviewType);
-  const relevant = await retrieveRelevantContext(query, documents, limit);
-
-  if (!relevant.length) {
-    return 'No relevant knowledge retrieved.';
-  }
-
-  return relevant
-    .map((item) => `Topic: ${item.topic}\nContext: ${item.content}`)
-    .join('\n\n---\n\n');
+  return scored
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
 }
 
 module.exports = {
-  buildKnowledgeBase,
+  normalizeText,
+  tokenize,
+  buildVocabulary,
+  buildKeywordVector,
+  cosineSimilarity,
   chunkText,
-  generateEmbedding,
-  ingestDocument,
   retrieveRelevantContext,
-  buildRetrievalQuery,
-  buildRAGContext,
-  KNOWLEDGE_BASE,
+  KNOWLEDGE_BASE
 };

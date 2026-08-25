@@ -76,7 +76,7 @@ exports.generateQuestion = async (req, res) => {
 exports.previewContext = async (req, res) => {
   try {
     const { candidateProfile, interviewTopic, role, interviewType } = req.body || {};
-    const context = buildRAGContext({
+    const context = await buildRAGContext({
       candidateProfile,
       interviewTopic,
       role,

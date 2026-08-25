@@ -44,7 +44,7 @@ function calculateQuestionCount(durationMinutes) {
  * @param {object} params - Parameters
  * @returns {string} - Prompt string
  */
-function buildQuestionPrompt(params) {
+async function buildQuestionPrompt(params) {
   const {
     role,
     interviewType,
@@ -65,7 +65,7 @@ function buildQuestionPrompt(params) {
     .join('; ') || 'Not provided';
 
   const companyContext = company ? ` at ${company}` : '';
-  const ragContext = buildRAGContext({
+  const ragContext = await buildRAGContext({
     candidateProfile,
     interviewTopic: role,
     role,
@@ -164,7 +164,7 @@ async function generateInterviewQuestions(params) {
       numQuestions,
     });
 
-    const prompt = buildQuestionPrompt({
+    const prompt = await buildQuestionPrompt({
       role,
       interviewType,
       difficulty,

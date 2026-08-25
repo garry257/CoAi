@@ -103,21 +103,12 @@ exports.createInterview = asyncHandler(async (req, res) => {
         .limit(1);
     }
 
-    // If no profile exists, create a default one for testing
+    // STRICT REQUIREMENT: If no profile exists (i.e. no resume uploaded), reject the request
     if (!candidateProfile) {
-      logger.info('[InterviewController] Creating default candidate profile for user:', req.user.id);
-      candidateProfile = new CandidateProfile({
-        userId: req.user.id,
-        skills: [],
-        languages: [],
-        frameworks: [],
-        databases: [],
-        tools: [],
-        experience: [],
-        resumeText: '',
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload your resume before starting an interview.'
       });
-      await candidateProfile.save();
-      logger.info('[InterviewController] Default candidate profile created:', candidateProfile._id);
     }
 
     // Create interview document

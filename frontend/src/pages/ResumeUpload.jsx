@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FiUploadCloud, FiFile, FiCheckCircle, FiAlertCircle, FiX } from 'react-icons/fi';
 import { uploadResume } from '../features/resume/api';
 
@@ -17,6 +17,7 @@ const STAGES = {
 
 const ResumeUpload = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef(null);
 
   const [stage, setStage] = useState(STAGES.idle);
@@ -77,8 +78,8 @@ const ResumeUpload = () => {
       await uploadResume(file, (pct) => setProgress(pct));
 
       setStage(STAGES.done);
-      // Redirect to profile after a short success moment
-      setTimeout(() => navigate('/profile'), 1200);
+      const redirectTarget = location.state?.from || '/profile';
+      setTimeout(() => navigate(redirectTarget), 1200);
     } catch (err) {
       const msg =
         err.response?.data?.message ||
